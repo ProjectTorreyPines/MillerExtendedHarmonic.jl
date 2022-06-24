@@ -116,9 +116,11 @@ end
 function (mxh::MXH)(adaptive_grid_N::Integer=100)
     step = mxh.R0 / adaptive_grid_N
     a = mxh.ϵ * mxh.R0
-    N = Int(ceil(2π * a * mxh.κ / step))
+    N = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
     Θ = LinRange(0, 2π, N)
-    return mxh.(Θ)
+    tmp = mxh.(Θ)
+    tmp[end] = tmp[1]
+    return [r for (r,z) in tmp],[z for (r,z) in tmp]
 end
 
 function (mxh::MXH)(θ::Real)
