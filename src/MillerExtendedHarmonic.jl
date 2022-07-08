@@ -159,4 +159,6 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
+export MXH
+
 end # module
