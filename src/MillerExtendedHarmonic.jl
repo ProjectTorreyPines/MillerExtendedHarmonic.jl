@@ -60,10 +60,31 @@ function MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer=5) where {T<:Real}
     return MXH(pr, pz, R0, Z0, a, b, MXH_modes)
 end
 
+function reorder_flux_surface!(pr, pz, R0, Z0)
+    # flip to clockwise so θ will increase
+    istart = argmax(pr[1:end-1])
+    if pz[istart+1] > pz[istart]
+        reverse!(pr)
+        reverse!(pz)
+        istart = length(pr) + 1 - istart
+    end
+
+    # start from low-field side point above z0 (only if flux surface closes)
+    if (pr[1] == pr[end]) && (pz[1] == pz[end])
+        istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
+        pr[1:end-1] = circshift(pr[1:end-1], 1 - istart)
+        pz[1:end-1] = circshift(pz[1:end-1], 1 - istart)
+        pr[end] = pr[1]
+        pz[end] = pz[1]
+    end
+end
+
 function MXH(pr::Vector{T}, pz::Vector{T}, R0::T, Z0::T, a::T, b::T, MXH_modes::Integer) where {T<:Real}
     L = length(pr)
     θ = zeros(L)
     θᵣ = zeros(L)
+
+    reorder_flux_surface!(pr, pz, R0, Z0)
 
     # Calculate angles with proper branches
     th = 0.0
