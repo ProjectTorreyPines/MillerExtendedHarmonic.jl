@@ -48,7 +48,7 @@ end
 Compute Fourier coefficients for Miller-extended-harmonic representation:
 
     R(r,θ) = R(r) + a(r)*cos(θᵣ(r,θ)) where θᵣ(r,θ) = θ + C₀(r) + sum[Cᵢ(r)*cos(i*θ) + Sᵢ(r)*sin(i*θ)]
-    Z(r,θ) = Z(r) + κ(r)*a(r)*sin(θ)
+    Z(r,θ) = Z(r) - κ(r)*a(r)*sin(θ)
 
 Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes
 """
@@ -73,7 +73,7 @@ function MXH(pr::Vector{T}, pz::Vector{T}, R0::T, Z0::T, a::T, b::T, MXH_modes::
         thr_old = thr
         aa = (pz[j] - Z0) / b
         aa = max(-1, min(1, aa))
-        th = asin(aa)
+        th = -asin(aa)
         bb = (pr[j] - R0) / a
         bb = max(-1, min(1, bb))
         thr = acos(bb)
@@ -125,19 +125,16 @@ end
 
 function (mxh::MXH)(θ::Real)
     a = mxh.ϵ * mxh.R0
-    if length(mxh.c) > 0
-        c_sum = sum(mxh.c[n] * cos(n * θ) for n in 1:length(mxh.c))
-    else
-        c_sum = 0.0
-    end
-    if length(mxh.s) > 0
-        s_sum = sum(mxh.s[n] * sin(n * θ) for n in 1:length(mxh.s))
-    else
-        s_sum = 0.0
+    c_sum = 0.0
+    s_sum = 0.0
+    for m in 1:length(mxh.c)
+        S, C = sincos(m * θ)
+        c_sum += mxh.c[m] * C
+        s_sum += mxh.s[m] * S
     end
     θ_R = θ + mxh.c0 + c_sum + s_sum
     r = mxh.R0 + a * cos(θ_R)
-    z = mxh.Z0 + mxh.κ * a * sin(θ)
+    z = mxh.Z0 - mxh.κ * a * sin(θ)
     return r, z
 end
 
