@@ -24,7 +24,7 @@ function MXH(flat_coeffs::Vector{<:Real})
     R0, Z0, ϵ, κ, c0 = flat_coeffs[1:5]
     L = Int((length(flat_coeffs) - 5) / 2)
     c = flat_coeffs[6:5+L]
-    s = flat_coeffs[7+L:5+L*2]
+    s = flat_coeffs[6+L:5+L*2]
     return MXH(R0, Z0, ϵ, κ, c0, c, s)
 end
 
