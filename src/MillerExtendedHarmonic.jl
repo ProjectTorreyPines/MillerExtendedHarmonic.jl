@@ -52,7 +52,7 @@ Compute Fourier coefficients for Miller-extended-harmonic representation:
 
 Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes
 """
-function MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer=5) where {T<:Real}
+function MXH(pr::AbstractVector{T}, pz::AbstractVector{T}, MXH_modes::Integer=5) where {T<:Real}
     R0 = 0.5 * (maximum(pr) + minimum(pr))
     Z0 = 0.5 * (maximum(pz) + minimum(pz))
     a = 0.5 * (maximum(pr) - minimum(pr))
@@ -60,7 +60,7 @@ function MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer=5) where {T<:Real}
     return MXH(pr, pz, R0, Z0, a, b, MXH_modes)
 end
 
-function reorder_flux_surface!(pr, pz, R0, Z0)
+function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0::T, Z0::T) where {T<:Real}
     # flip to clockwise so θ will increase
     istart = argmax(pr[1:end-1])
     if pz[istart+1] > pz[istart]
