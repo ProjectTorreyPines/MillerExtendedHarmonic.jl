@@ -60,6 +60,10 @@ function MXH(pr::AbstractVector{T}, pz::AbstractVector{T}, MXH_modes::Integer=5)
     return MXH(pr, pz, R0, Z0, a, b, MXH_modes)
 end
 
+function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}) where {T<:Real}
+    return reorder_flux_surface!(pr, pz, sum(pr)/length(pr), sum(pz)/length(pz))
+end
+
 function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0::T, Z0::T) where {T<:Real}
     # flip to clockwise so θ will increase
     istart = argmax(pr[1:end-1])
@@ -77,6 +81,8 @@ function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0:
         pr[end] = pr[1]
         pz[end] = pz[1]
     end
+
+    return pr, pz
 end
 
 function MXH(pr::Vector{T}, pz::Vector{T}, R0::T, Z0::T, a::T, b::T, MXH_modes::Integer) where {T<:Real}
