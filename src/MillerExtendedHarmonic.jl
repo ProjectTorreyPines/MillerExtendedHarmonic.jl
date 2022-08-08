@@ -1,16 +1,39 @@
 module MillerExtendedHarmonic
 
 using RecipesBase
+import LinearAlgebra: dot
 
-mutable struct MXH
-    R0::Real          # Major Radius
-    Z0::Real          # Elevation
-    ϵ::Real           # Inverse aspect ratio a/R0
-    κ::Real           # Elongation
-    c0::Real          # Tilt
-    c::Vector{<:Real} # Cosine coefficients acos.([ovality,...])
-    s::Vector{<:Real} # Sine coefficients asin.([triangularity,-squareness,...]
+mutable struct MXH{T <: Real, U<:AbstractVector{<:Real}}
+    R0::T  # Major Radius
+    Z0::T  # Elevation
+    ϵ::T   # Inverse aspect ratio a/R0
+    κ::T   # Elongation
+    c0::T  # Tilt
+    c::U   # Cosine coefficients acos.([ovality,...])
+    s::U   # Sine coefficients asin.([triangularity,-squareness,...]
+    function MXH{T, U}(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T <: Real, U<:AbstractVector{<:Real}}
+        return length(c) == length(s) ? new{T, U}(R0, Z0, ϵ, κ, c0, c, s) : throw(DimensionMismatch)
+    end
 end
+
+function MXH(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T <: Real, U<:AbstractVector{<:Real}}
+    return MXH{T, U}(R0, Z0, ϵ, κ, c0, c, s)
+end
+
+function MXH(R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
+    return MXH(promote(R0, Z0, ϵ, κ, c0)..., promote_vectors(c, s)...)
+end
+
+function promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real}, U<:AbstractVector{<:Real}}
+    T === U && return c, s
+    try
+        return promote(c, s)
+    catch
+        return promote(_promote_vectors(c,s)...)
+    end
+end
+_promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real}, U<:AbstractRange{<:Real}} = (c, collect(s))
+_promote_vectors(c::T, s::U) where {T<:AbstractRange{<:Real}, U<:AbstractVector{<:Real}} = (collect(c), s)
 
 function MXH(R0::Real, n_coeffs::Integer)
     return MXH(R0, 0.0, 0.3, 1.0, 0.0, zeros(n_coeffs), zeros(n_coeffs))
@@ -22,9 +45,9 @@ end
 
 function MXH(flat_coeffs::Vector{<:Real})
     R0, Z0, ϵ, κ, c0 = flat_coeffs[1:5]
-    L = Int((length(flat_coeffs) - 5) / 2)
-    c = flat_coeffs[6:5+L]
-    s = flat_coeffs[6+L:5+L*2]
+    L = (length(flat_coeffs) - 5) ÷ 2
+    c = flat_coeffs[6:(5 + L)]
+    s = flat_coeffs[(6 + L):(5 + 2L)]
     return MXH(R0, Z0, ϵ, κ, c0, c, s)
 end
 
@@ -34,10 +57,12 @@ end
 This does Int[f.w]/Int[w.w]
 If w is a pure Fourier mode, this gives the Fourier coefficient
 """
-function MXH_moment(f, w, d)
+function MXH_moment(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, d::AbstractVector{<:Real})
     # Could probably be replaced by some Julia trapz
-    s0 = sum((f[1:end-1] .* w[1:end-1] .+ f[2:end] .* w[2:end]) .* d[1:end-1])
-    s1 = sum((w[1:end-1] .* w[1:end-1] .+ w[2:end] .* w[2:end]) .* d[1:end-1])
+    N = length(f)
+    @assert length(w) == length(d) == N
+    @inbounds s0 = sum((f[i] * w[i] + f[i+1] * w[i+1]) * d[i] for i in 1:(N-1))
+    @inbounds s1 = sum((w[i]^2 + w[i+1]^2) * d[i] for i in 1:(N-1))
     res = s0 / s1
     return res
 end
@@ -52,7 +77,7 @@ Compute Fourier coefficients for Miller-extended-harmonic representation:
 
 Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes
 """
-function MXH(pr::AbstractVector{T}, pz::AbstractVector{T}, MXH_modes::Integer=5) where {T<:Real}
+function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5)
     R0 = 0.5 * (maximum(pr) + minimum(pr))
     Z0 = 0.5 * (maximum(pz) + minimum(pz))
     a = 0.5 * (maximum(pr) - minimum(pr))
@@ -60,13 +85,16 @@ function MXH(pr::AbstractVector{T}, pz::AbstractVector{T}, MXH_modes::Integer=5)
     return MXH(pr, pz, R0, Z0, a, b, MXH_modes)
 end
 
-function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}) where {T<:Real}
+
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
     return reorder_flux_surface!(pr, pz, sum(pr)/length(pr), sum(pz)/length(pz))
 end
 
-function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0::T, Z0::T) where {T<:Real}
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real)
+    @assert length(pr) == length(pz)
+
     # flip to clockwise so θ will increase
-    istart = argmax(pr[1:end-1])
+    @views istart = argmax(pr[1:end-1])
     if pz[istart+1] > pz[istart]
         reverse!(pr)
         reverse!(pz)
@@ -75,9 +103,9 @@ function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0:
 
     # start from low-field side point above z0 (only if flux surface closes)
     if (pr[1] == pr[end]) && (pz[1] == pz[end])
-        istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
-        pr[1:end-1] = circshift(pr[1:end-1], 1 - istart)
-        pz[1:end-1] = circshift(pz[1:end-1], 1 - istart)
+        @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
+        @views pr[1:end-1] .= circshift(pr[1:end-1], 1 - istart)
+        @views pz[1:end-1] .= circshift(pz[1:end-1], 1 - istart)
         pr[end] = pr[1]
         pz[end] = pz[1]
     end
@@ -85,57 +113,78 @@ function reorder_flux_surface!(pr::AbstractVector{T}, pz::AbstractVector{T}, R0:
     return pr, pz
 end
 
-function MXH(pr::Vector{T}, pz::Vector{T}, R0::T, Z0::T, a::T, b::T, MXH_modes::Integer) where {T<:Real}
-    L = length(pr)
-    θ = zeros(L)
-    θᵣ = zeros(L)
-
-    reorder_flux_surface!(pr, pz, R0, Z0)
-
-    # Calculate angles with proper branches
+function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real},
+                     pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
+                     R0::Real, Z0::Real, a::Real, b::Real)
+    @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz)
     th = 0.0
     thr = 0.0
-    for j in 1:L
+    @inbounds for j in eachindex(θ)
         th_old = th
         thr_old = thr
-        aa = (pz[j] - Z0) / b
+        aa = (Z0 - pz[j]) / b
         aa = max(-1, min(1, aa))
-        th = -asin(aa)
+        th = asin(aa)
         bb = (pr[j] - R0) / a
         bb = max(-1, min(1, bb))
         thr = acos(bb)
         if (j == 1) || ((th > th_old) && (thr > thr_old))
-            θ[j] = th
-            θᵣ[j] = thr
+            @inbounds θ[j] = th
+            @inbounds Δθᵣ[j] = thr
         elseif (th < th_old) && (thr > thr_old)
-            θ[j] = π - th
-            θᵣ[j] = thr
+            @inbounds θ[j] = π - th
+            @inbounds Δθᵣ[j] = thr
         elseif (th < th_old) && (thr < thr_old)
-            θ[j] = π - th
-            θᵣ[j] = 2π - thr
+            @inbounds θ[j] = π - th
+            @inbounds Δθᵣ[j] = 2π - thr
         elseif (th > th_old) && (thr < thr_old)
-            θ[j] = 2π + th
-            θᵣ[j] = 2π - thr
+            @inbounds θ[j] = 2π + th
+            @inbounds Δθᵣ[j] = 2π - thr
         end
+        @inbounds Δθᵣ[j] -= θ[j]
     end
+end
 
-    dθ = zeros(L)
-    for j in 1:L-1
+function MXH_coeffs!(sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
+                    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
+                    Fm::Union{AbstractVector{<:Real}, Nothing}=nothing)
+    @assert length(sin_coeffs) == length(cos_coeffs)
+    Fm === nothing && (Fm = similar(θ))
+    @inbounds for m in eachindex(sin_coeffs)
+        Fm .= sin.(m .* θ)
+        sin_coeffs[m] = MXH_moment(Δθᵣ, Fm, dθ)
+
+        Fm .= cos.(m .* θ)
+        cos_coeffs[m] = MXH_moment(Δθᵣ, Fm, dθ)
+    end
+end
+
+function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer)
+
+    @assert length(pr) == length(pz)
+
+    reorder_flux_surface!(pr, pz, R0, Z0)
+
+    θ = similar(pr)
+    Δθᵣ = similar(pr)
+
+    # Calculate angles with proper branches
+    MXH_angles!(θ, Δθᵣ, pr, pz, R0, Z0, a, b)
+
+    dθ = similar(θ)
+    @inbounds for j in eachindex(dθ)[1:end-1]
         dθ[j] = θ[j+1] - θ[j]
-        if dθ[j] < 0
-            dθ[j] += 2π
-        end
+        dθ[j] < 0 && (dθ[j] += 2π)
     end
     dθ[end] = dθ[1]
 
-    tilt = MXH_moment(θᵣ - θ, ones(L), dθ)
+    Fm = similar(θ)
+    Fm .= 1.0  # cos(0 * θ)
+    tilt = MXH_moment(Δθᵣ, Fm, dθ)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
-    for m in 1:MXH_modes
-        sin_coeffs[m] = MXH_moment(θᵣ - θ, sin.(m * θ), dθ)
-        cos_coeffs[m] = MXH_moment(θᵣ - θ, cos.(m * θ), dθ)
-    end
+    MXH_coeffs!(sin_coeffs, cos_coeffs, θ, Δθᵣ, dθ; Fm)
 
     return MXH(R0, Z0, a / R0, b / a, tilt, cos_coeffs, sin_coeffs)
 end
@@ -150,19 +199,45 @@ function (mxh::MXH)(adaptive_grid_N::Integer=100)
     return [r for (r,z) in tmp],[z for (r,z) in tmp]
 end
 
+function R_MXH(θ::Real, mxh::MXH; a=nothing)
+    a === nothing && (a = mxh.ϵ * mxh.R0)
+    @inbounds cs_sum = sum(dot((mxh.s[m], mxh.c[m]), sincos(m * θ)) for m in eachindex(mxh.c))
+    return mxh.R0 + a * cos(θ + mxh.c0 + cs_sum)
+end
+
+function Z_MXH(θ::Real, mxh::MXH; a=nothing)
+    a === nothing && (a = mxh.ϵ * mxh.R0)
+    return mxh.Z0 - mxh.κ * a * sin(θ)
+end
+
 function (mxh::MXH)(θ::Real)
     a = mxh.ϵ * mxh.R0
-    c_sum = 0.0
-    s_sum = 0.0
-    for m in 1:length(mxh.c)
-        S, C = sincos(m * θ)
-        c_sum += mxh.c[m] * C
-        s_sum += mxh.s[m] * S
-    end
-    θ_R = θ + mxh.c0 + c_sum + s_sum
-    r = mxh.R0 + a * cos(θ_R)
-    z = mxh.Z0 - mxh.κ * a * sin(θ)
+    r = R_MXH(θ, mxh; a)
+    z = Z_MXH(θ, mxh; a)
     return r, z
+end
+
+function in_surface(R::Real, Z::Real, mxh::MXH)
+    a = mxh.R0 * mxh.ϵ
+    (R > (mxh.R0 + a) || R < (mxh.R0 - a)) && return false
+    (Z > (mxh.Z0 + mxh.κ * a) || Z < (mxh.Z0 - mxh.κ * a)) && return false
+
+    θ = asin((mxh.Z0 - Z)/(mxh.κ * a))
+
+    if θ >= 0
+        if R < R_MXH(0.5*π, mxh; a)
+            R < R_MXH(π - θ, mxh; a) && return false
+        else
+            R > R_MXH(θ, mxh; a) && return false
+        end
+    else
+        if R < R_MXH(-0.5*π, mxh; a)
+            R < R_MXH(-π - θ, mxh; a) && return false
+        else
+            R > R_MXH(θ, mxh; a) && return false
+        end
+    end
+    return true
 end
 
 @recipe function plot_mxh(mxh::MXH; adaptive_grid_N=100)
@@ -183,6 +258,6 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
-export MXH
+export MXH, R_MXH, Z_MXH, in_surface, flat_coeffs
 
 end # module
