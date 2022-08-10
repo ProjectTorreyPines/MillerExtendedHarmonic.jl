@@ -40,11 +40,26 @@ function MXH(R0::Real, n_coeffs::Integer)
 end
 
 function flat_coeffs(mxh::MXH)
-    return vcat(mxh.R0, mxh.Z0, mxh.ϵ, mxh.κ, mxh.c0, mxh.c, mxh.s)
+    L = length(mxh.c)
+    flat = zeros(5 + 2L)
+    return flat_coeffs!(flat, mxh)
+end
+
+function flat_coeffs!(flat::AbstractVector{<:Real}, mxh::MXH)
+    L = length(mxh.c)
+    @assert length(flat) == 5 + 2L
+    flat[1] = mxh.R0
+    flat[2] = mxh.Z0
+    flat[3] = mxh.ϵ
+    flat[4] = mxh.κ
+    flat[5] = mxh.c0
+    @views flat[6:(5 + L)] .= mxh.c
+    @views flat[(6 + L):(5 + 2L)] .= mxh.s
+    return flat
 end
 
 function MXH(flat_coeffs::Vector{<:Real})
-    R0, Z0, ϵ, κ, c0 = flat_coeffs[1:5]
+    @views R0, Z0, ϵ, κ, c0 = flat_coeffs[1:5]
     L = (length(flat_coeffs) - 5) ÷ 2
     c = flat_coeffs[6:(5 + L)]
     s = flat_coeffs[(6 + L):(5 + 2L)]
@@ -200,14 +215,42 @@ function (mxh::MXH)(adaptive_grid_N::Integer=100)
 end
 
 function R_MXH(θ::Real, mxh::MXH; a=nothing)
-    a === nothing && (a = mxh.ϵ * mxh.R0)
-    @inbounds cs_sum = sum(dot((mxh.s[m], mxh.c[m]), sincos(m * θ)) for m in eachindex(mxh.c))
-    return mxh.R0 + a * cos(θ + mxh.c0 + cs_sum)
+    return R_MXH(θ, mxh.R0, mxh.ϵ, mxh.c0, mxh.c, mxh.s; a)
 end
 
-function Z_MXH(θ::Real, mxh::MXH; a=nothing)
-    a === nothing && (a = mxh.ϵ * mxh.R0)
-    return mxh.Z0 - mxh.κ * a * sin(θ)
+function R_MXH(θ::Real, flat::AbstractVector{<:Real}; a=nothing)
+    L = (length(flat) - 5) ÷ 2
+    R0 = flat[1]
+    ϵ  = flat[3]
+    c0 = flat[5]
+    @views r = R_MXH(θ, R0, ϵ, c0, flat[6:(5 + L)], flat[(6 + L):(5 + 2L)]; a)
+    return r
+end
+
+function R_MXH(θ::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}; a=nothing)
+    return R_MXH(θ, R0, ϵ, c0, c, s; a)
+end
+
+function R_MXH(θ::Real, R0::Real, ϵ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}; a=nothing)
+    a === nothing && (a = ϵ * R0)
+    @inbounds cs_sum = sum(dot((s[m], c[m]), sincos(m * θ)) for m in eachindex(c))
+    return R0 + a * cos(θ + c0 + cs_sum)
+end
+
+Z_MXH(θ::Real, mxh::MXH; a=nothing) = Z_MXH(θ, mxh.R0, mxh.Z0, mxh.ϵ, mxh.κ; a)
+
+function Z_MXH(θ::Real, flat::AbstractVector{<:Real}; a=nothing)
+    @views z = Z_MXH(θ, flat[1:4]...; a)
+    return z
+end
+
+function Z_MXH(θ::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}; a=nothing)
+    return Z_MXH(θ, R0, Z0, ϵ, κ; a)
+end
+
+function Z_MXH(θ::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real; a=nothing)
+    a === nothing && (a = ϵ * R0)
+    return Z0 - κ * a * sin(θ)
 end
 
 function (mxh::MXH)(θ::Real)
@@ -258,6 +301,6 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
-export MXH, R_MXH, Z_MXH, in_surface, flat_coeffs
+export MXH, R_MXH, Z_MXH, in_surface, flat_coeffs, flat_coeffs!
 
 end # module
