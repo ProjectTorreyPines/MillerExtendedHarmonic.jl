@@ -291,8 +291,9 @@ end
 @inline function R_MXH(θ::Real, R0::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}, a::Real)
     cs = cs_sum(θ, c, s)
     θr = θ + c0 + cs
-    return R0 + a * cos(θr)
+    return R_MXH(R0, a, θr)
 end
+@inline R_MXH(R0, a, θr) =  R0 + a * cos(θr)
 
 @inline function cs_sum(θ::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     tot = 0.0
