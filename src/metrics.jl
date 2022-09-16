@@ -74,6 +74,10 @@ function Tr_dTrdρ_dTrdθ(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::Abst
         θr     += dot((S, C),   scmt)
         dθr_dρ += dot((dS, dC), scmt)
         dθr_dθ += m * dot((-C, S),  scmt)
+        # smt, cmt = sincos(m * θ)
+        # θr     += S * smt + C * cmt
+        # dθr_dρ += dS * smt + dC * cmt
+        # dθr_dθ += m * (-C * smt + S * cmt)
     end
     return θr, dθr_dρ, dθr_dθ
 end
@@ -261,4 +265,54 @@ function gθθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVect
         gtt /= J
     end
     return gtt
+end
+
+function gρρ_gρθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                 dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
+    θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds)
+    R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
+    grr = R_θ^2 + Z_θ^2
+    grt = -(R_ρ * R_θ + Z_ρ * Z_θ)
+    if grr != 0.0 || grt != 0.0
+        a = R0 * ϵ
+        R = R_MXH(R0, a, θr)
+        J = Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
+        grr /= J
+        grt /= J
+    end
+    return grr, grt
+end
+
+function gρθ_gθθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                 dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
+    θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds)
+    R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
+    grt = -(R_ρ * R_θ + Z_ρ * Z_θ)
+    gtt = R_ρ^2 + Z_ρ^2
+    if grt != 0.0 || gtt != 0.0
+        a = R0 * ϵ
+        R = R_MXH(R0, a, θr)
+        J = Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
+        grt /= J
+        gtt /= J
+    end
+    return grt, gtt
+end
+
+function gρρ_gρθ_gθθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                 dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
+    θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds)
+    R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
+    grr = R_θ^2 + Z_θ^2
+    grt = -(R_ρ * R_θ + Z_ρ * Z_θ)
+    gtt = R_ρ^2 + Z_ρ^2
+    if grr != 0.0
+        a = R0 * ϵ
+        R = R_MXH(R0, a, θr)
+        J = Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
+        grr /= J
+        grt /= J
+        gtt /= J
+    end
+    return grr, grt, gtt
 end
