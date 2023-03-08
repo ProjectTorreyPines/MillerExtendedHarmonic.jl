@@ -2,9 +2,11 @@ module MillerExtendedHarmonic
 
 using RecipesBase
 import LinearAlgebra: dot
+using Optim
 
 include("MXH.jl")
-export MXH, MXH!, R_MXH, Z_MXH, flat_coeffs, flat_coeffs!, copy_MXH!, MXH_coeffs!, fit_flattened!
+export MXH, MXH!, R_MXH, Z_MXH, flat_coeffs, flat_coeffs!, copy_MXH!, MXH_coeffs!
+export fit_flattened!, optimize_fit!
 
 include("metrics.jl")
 export Tr, dTr_dρ, dTr_dθ, dR_dρ, dZ_dρ, dR_dθ, dZ_dθ
