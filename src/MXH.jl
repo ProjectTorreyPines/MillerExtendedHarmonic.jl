@@ -226,24 +226,42 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit)
 end
 
+function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
+    @assert length(pr) == length(pz)
+
+    # flip to clockwise so θ will increase
+    @views Rmax = argmax(pr[1:end-1])
+    if pz[Rmax+1] > pz[Rmax]
+        reverse!(pr)
+        reverse!(pz)
+    end
+
+    return pr, pz
+end
+
 function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
     return reorder_flux_surface!(pr, pz, sum(pr)/length(pr), sum(pz)/length(pz))
 end
 
 function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real)
-    @assert length(pr) == length(pz)
-
     # flip to clockwise so θ will increase
-    @views istart = argmax(pr[1:end-1])
-    if pz[istart+1] > pz[istart]
-        reverse!(pr)
-        reverse!(pz)
-        istart = length(pr) + 1 - istart
-    end
+    clockwise!(pr, pz)
+
+    # find point closest to the midplane (1st quadrant)
+    @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
+
+    # sort points in flux surface so that istart is the first point
+    reorder_flux_surface!(pr, pz, istart)
+
+    return pr, pz
+end
+
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, istart::Int)
+    # flip to clockwise so θ will increase
+    clockwise!(pr, pz)
 
     # start from low-field side point above z0 (only if flux surface closes)
     if (pr[1] == pr[end]) && (pz[1] == pz[end])
-        @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
         @views pr[1:end-1] .= circshift(pr[1:end-1], 1 - istart)
         @views pz[1:end-1] .= circshift(pz[1:end-1], 1 - istart)
         pr[end] = pr[1]
