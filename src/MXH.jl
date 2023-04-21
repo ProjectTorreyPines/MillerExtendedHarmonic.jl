@@ -277,27 +277,49 @@ function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}
     @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz)
     th = 0.0
     thr = 0.0
+    jrmax = argmax(pr)
+    jzmin = argmin(pz)
+    jrmin = argmin(pr)
+    jzmax = argmax(pz)
+
+    branch = jrmax < jzmax ? 0 : 1
     @inbounds for j in eachindex(θ)
-        th_old = th
-        thr_old = thr
         aa = (Z0 - pz[j]) / b
         aa = max(-1, min(1, aa))
         th = asin(aa)
         bb = (pr[j] - R0) / a
         bb = max(-1, min(1, bb))
         thr = acos(bb)
-        if (j == 1) || ((th > th_old) && (thr > thr_old))
+        if branch == 0
+            (j > jrmax) && (branch = 1)
+        elseif branch == 1
+            (j > jzmin) && (branch = 2)
+        elseif branch == 2
+            (j > jrmin) && (branch = 3)
+        elseif branch == 3
+            (j > jzmax) && (branch = 4)
+        elseif branch == 4
+            (j > jrmax && jrmax > jzmax) && (branch = 5)
+        end
+
+        if branch == 0
+            @inbounds θ[j] = th
+            @inbounds Δθᵣ[j] = -thr
+        elseif branch == 1
             @inbounds θ[j] = th
             @inbounds Δθᵣ[j] = thr
-        elseif (th < th_old) && (thr > thr_old)
+        elseif branch == 2
             @inbounds θ[j] = π - th
             @inbounds Δθᵣ[j] = thr
-        elseif (th < th_old) && (thr < thr_old)
+        elseif branch == 3
             @inbounds θ[j] = π - th
             @inbounds Δθᵣ[j] = 2π - thr
-        elseif (th > th_old) && (thr < thr_old)
+        elseif branch == 4
             @inbounds θ[j] = 2π + th
             @inbounds Δθᵣ[j] = 2π - thr
+        elseif branch == 5
+            @inbounds θ[j] = 2π + th
+            @inbounds Δθᵣ[j] = 2π + thr
         end
         @inbounds Δθᵣ[j] -= θ[j]
     end
