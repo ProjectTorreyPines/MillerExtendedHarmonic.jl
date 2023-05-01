@@ -479,7 +479,7 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
     algo = Optim.Fminbox(inner_optimizer)
     options = Optim.Options()#store_trace=true, show_trace=true)
     res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff = :forward)
-    debug && println("Residual: ", f(res.minimizer))
+    #debug && println("Residual: ", f(res.minimizer))
 
     Rmin = res.minimizer[1]
     Rmax = res.minimizer[2]
