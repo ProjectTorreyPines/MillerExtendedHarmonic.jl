@@ -549,11 +549,15 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
-function (mxh::MXH)(adaptive_grid_N::Integer=100)
-    step = mxh.R0 / adaptive_grid_N
-    a = mxh.ϵ * mxh.R0
-    N = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
-    Θ = LinRange(0, 2π, N)
+function (mxh::MXH)(N::Integer=100; adaptive::Bool = true)
+    if adaptive
+        step = mxh.R0 / N
+        a = mxh.ϵ * mxh.R0    
+        NN = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
+    else
+        NN = N
+    end
+    Θ = LinRange(0, 2π, NN)
     tmp = mxh.(Θ)
     tmp[end] = tmp[1]
     return [r for (r,z) in tmp],[z for (r,z) in tmp]
