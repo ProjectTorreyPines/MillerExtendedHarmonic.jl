@@ -1,4 +1,4 @@
-mutable struct MXH{T <: Real, U<:AbstractVector{<:Real}}
+mutable struct MXH{T<:Real,U<:AbstractVector{<:Real}}
     R0::T  # Major Radius
     Z0::T  # Elevation
     ϵ::T   # Inverse aspect ratio a/R0
@@ -6,29 +6,29 @@ mutable struct MXH{T <: Real, U<:AbstractVector{<:Real}}
     c0::T  # Tilt
     c::U   # Cosine coefficients acos.([ovality,...])
     s::U   # Sine coefficients asin.([triangularity,-squareness,...]
-    function MXH{T, U}(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T <: Real, U<:AbstractVector{<:Real}}
-        return length(c) == length(s) ? new{T, U}(R0, Z0, ϵ, κ, c0, c, s) : throw(DimensionMismatch)
+    function MXH{T,U}(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T<:Real,U<:AbstractVector{<:Real}}
+        return length(c) == length(s) ? new{T,U}(R0, Z0, ϵ, κ, c0, c, s) : throw(DimensionMismatch)
     end
 end
 
-function MXH(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T <: Real, U<:AbstractVector{<:Real}}
-    return MXH{T, U}(R0, Z0, ϵ, κ, c0, c, s)
+function MXH(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T<:Real,U<:AbstractVector{<:Real}}
+    return MXH{T,U}(R0, Z0, ϵ, κ, c0, c, s)
 end
 
 function MXH(R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     return MXH(promote(R0, Z0, ϵ, κ, c0)..., promote_vectors(c, s)...)
 end
 
-function promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real}, U<:AbstractVector{<:Real}}
+function promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real},U<:AbstractVector{<:Real}}
     T === U && return c, s
     try
         return promote(c, s)
     catch
-        return promote(_promote_vectors(c,s)...)
+        return promote(_promote_vectors(c, s)...)
     end
 end
-_promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real}, U<:AbstractRange{<:Real}} = (c, collect(s))
-_promote_vectors(c::T, s::U) where {T<:AbstractRange{<:Real}, U<:AbstractVector{<:Real}} = (collect(c), s)
+_promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real},U<:AbstractRange{<:Real}} = (c, collect(s))
+_promote_vectors(c::T, s::U) where {T<:AbstractRange{<:Real},U<:AbstractVector{<:Real}} = (collect(c), s)
 
 function MXH(R0::Real, n_coeffs::Integer)
     return MXH(R0, 0.0, 0.3, 1.0, 0.0, zeros(n_coeffs), zeros(n_coeffs))
@@ -48,32 +48,32 @@ function flat_coeffs!(flat::AbstractVector{<:Real}, mxh::MXH)
     flat[3] = mxh.ϵ
     flat[4] = mxh.κ
     flat[5] = mxh.c0
-    @views flat[6:(5 + L)] .= mxh.c
-    @views flat[(6 + L):(5 + 2L)] .= mxh.s
+    @views flat[6:(5+L)] .= mxh.c
+    @views flat[(6+L):(5+2L)] .= mxh.s
     return flat
 end
 
 function unflatten(flat::AbstractVector{<:Real})
     R0 = flat[1]
     Z0 = flat[2]
-    ϵ  = flat[3]
-    κ  = flat[4]
+    ϵ = flat[3]
+    κ = flat[4]
     c0 = flat[5]
     L = (length(flat) - 5) ÷ 2
-    c = flat[6:(5 + L)]
-    s = flat[(6 + L):(5 + 2L)]
+    c = flat[6:(5+L)]
+    s = flat[(6+L):(5+2L)]
     return R0, Z0, ϵ, κ, c0, c, s
 end
 
 function unflatten_view(flat::AbstractVector{<:Real})
     R0 = flat[1]
     Z0 = flat[2]
-    ϵ  = flat[3]
-    κ  = flat[4]
+    ϵ = flat[3]
+    κ = flat[4]
     c0 = flat[5]
     L = (length(flat) - 5) ÷ 2
-    @views c = flat[6:(5 + L)]
-    @views s = flat[(6 + L):(5 + 2L)]
+    @views c = flat[6:(5+L)]
+    @views s = flat[(6+L):(5+2L)]
     return R0, Z0, ϵ, κ, c0, c, s
 end
 
@@ -116,7 +116,7 @@ function find_extremum(xm, x0, xp, ym, y0, yp)
     a = ((yp - y0) * (xm - x0) - (ym - y0) * (xp - x0)) / ((xp - xm) * (xp - x0) * (xm - x0))
     b = (ym - y0) / (xm - x0)
     xext = 0.5 * (x0 + xm - b / a)
-    yext = (a * (xext - xm) + b ) * (xext - x0) + y0
+    yext = (a * (xext - xm) + b) * (xext - x0) + y0
     return xext, yext
 end
 
@@ -124,11 +124,11 @@ function find_extrema(R, Z)
 
     function im_ip(i0)
         N = length(R)
-        periodic = (R[1]==R[N] && Z[1]==Z[N])
+        periodic = (R[1] == R[N] && Z[1] == Z[N])
         im = 0
         ip = 0
         if i0 == 1
-            periodic ? im = N-1 : im = N
+            periodic ? im = N - 1 : im = N
         else
             im = i0 - 1
         end
@@ -201,8 +201,8 @@ function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
-              θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing,
-              optimize_fit=false)
+    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing,
+    optimize_fit=false)
     rmin = 0.0
     rmax = 0.0
     zmin = 0.0
@@ -221,8 +221,8 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     end
     R0 = 0.5 * (rmax + rmin)
     Z0 = 0.5 * (zmax + zmin)
-    a  = 0.5 * (rmax - rmin)
-    b  = 0.5 * (zmax - zmin)
+    a = 0.5 * (rmax - rmin)
+    b = 0.5 * (zmax - zmin)
     return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit)
 end
 
@@ -239,11 +239,11 @@ function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
     return pr, pz
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
-    return reorder_flux_surface!(pr, pz, sum(pr)/length(pr), sum(pz)/length(pz))
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; force_close::Bool=true)
+    return reorder_flux_surface!(pr, pz, sum(pr) / length(pr), sum(pz) / length(pz); force_close)
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real)
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real; force_close::Bool=true)
     # flip to clockwise so θ will increase
     clockwise!(pr, pz)
 
@@ -251,14 +251,19 @@ function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:
     @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
 
     # sort points in flux surface so that istart is the first point
-    reorder_flux_surface!(pr, pz, istart)
+    reorder_flux_surface!(pr, pz, istart; force_close)
 
     return pr, pz
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, istart::Int)
+function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, istart::Int; force_close::Bool=true)
     # flip to clockwise so θ will increase
     clockwise!(pr, pz)
+
+    if force_close
+        pr[end] = (pr[end] + pr[1]) / 2.0
+        pz[end] = (pz[end] + pz[1]) / 2.0
+    end
 
     # start from low-field side point above z0 (only if flux surface closes)
     if (pr[1] == pr[end]) && (pz[1] == pz[end])
@@ -272,8 +277,8 @@ function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:
 end
 
 function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real},
-                     pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
-                     R0::Real, Z0::Real, a::Real, b::Real)
+    pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
+    R0::Real, Z0::Real, a::Real, b::Real)
     @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz)
     th = 0.0
     thr = 0.0
@@ -326,8 +331,8 @@ function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}
 end
 
 function MXH_coeffs!(sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
-                    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
-                    Fm::Union{AbstractVector{<:Real}, Nothing}=nothing)
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
+    Fm::Union{AbstractVector{<:Real},Nothing}=nothing)
     @assert length(sin_coeffs) == length(cos_coeffs)
     Fm === nothing && (Fm = similar(θ))
     @inbounds for m in eachindex(sin_coeffs)
@@ -340,7 +345,7 @@ function MXH_coeffs!(sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVec
 end
 
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
-             θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing)
+    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
@@ -349,12 +354,12 @@ function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-              θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false)
+    θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false)
     MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-              θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real}, optimize_fit=false)
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real}, optimize_fit=false)
 
     @assert length(pr) == length(pz)
 
@@ -403,12 +408,12 @@ function fit_residual(x, pr, pz)
     Zmax = x[4]
     c0 = x[5]
     L = (length(x) - 5) ÷ 2
-    @views c = x[6:(5 + L)]
-    @views s = x[(6 + L):(5 + 2L)]
+    @views c = x[6:(5+L)]
+    @views s = x[(6+L):(5+2L)]
     R0 = 0.5 * (Rmax + Rmin)
-    a  = 0.5 * (Rmax - Rmin)
+    a = 0.5 * (Rmax - Rmin)
     Z0 = 0.5 * (Zmax + Zmin)
-    b  = 0.5 * (Zmax - Zmin)
+    b = 0.5 * (Zmax - Zmin)
     κ = b / a
 
     R_at_Zmin = R_MXH(0.5 * π, R0, c0, c, s, a)
@@ -430,7 +435,7 @@ function fit_residual(x, pr, pz)
         end
         fac = 1.0
         #D_cs_sum(th, c, s) < -1.0 && (fac = 1e4)
-        res += fac * ((R_MXH(th, R0, c0, c, s, a) - pr[j]) ^ 2 + (Z_MXH(th, Z0, κ, a) - pz[j]) ^ 2)
+        res += fac * ((R_MXH(th, R0, c0, c, s, a) - pr[j])^2 + (Z_MXH(th, Z0, κ, a) - pz[j])^2)
     end
 
     return res
@@ -455,30 +460,30 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
     upper = zero(flat)
 
     lower[1] = Rmin - δa
-    flat[1]  = Rmin
+    flat[1] = Rmin
     upper[1] = Rmin + δa
     lower[2] = Rmax - δa
-    flat[2]  = Rmax
+    flat[2] = Rmax
     upper[2] = Rmax + δa
     lower[3] = Zmin - δb
-    flat[3]  = Zmin
+    flat[3] = Zmin
     upper[3] = Zmin + δb
     lower[4] = Zmax - δb
-    flat[4]  = Zmax
+    flat[4] = Zmax
     upper[4] = Zmax + δb
     lower[5:end] .= -0.5 * π
-    upper[5:end] .=  0.5 * π
-#    debug && println("Original: ", f(flat))
+    upper[5:end] .= 0.5 * π
+    #    debug && println("Original: ", f(flat))
     M0 = 5
     M = (length(flat) - 5) ÷ 2
     if M > M0
-        flat[(6+M0):(5 + M)] .= 0
-        flat[(6 + M + M0):(5 + 2M)] .= 0
+        flat[(6+M0):(5+M)] .= 0
+        flat[(6+M+M0):(5+2M)] .= 0
     end
 
     algo = Optim.Fminbox(inner_optimizer)
     options = Optim.Options()#store_trace=true, show_trace=true)
-    res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff = :forward)
+    res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff=:forward)
     #debug && println("Residual: ", f(res.minimizer))
 
     Rmin = res.minimizer[1]
@@ -497,8 +502,8 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
 end
 
 function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
-                        θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real};
-                        rmin::Real=minimum(pr), rmax::Real=maximum(pr), zmin::Real=minimum(pz), zmax::Real=maximum(pz))
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real};
+    rmin::Real=minimum(pr), rmax::Real=maximum(pr), zmin::Real=minimum(pz), zmax::Real=maximum(pz))
 
     @assert length(pr) == length(pz)
 
@@ -518,8 +523,8 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
     MXH_angles!(θ, Δθᵣ, pr, pz, R0, Z0, a, b)
 
     @inbounds @views for j in eachindex(dθ)[1:end-1]
-    dθ[j] = θ[j+1] - θ[j]
-    dθ[j] < 0 && (dθ[j] += 2π)
+        dθ[j] = θ[j+1] - θ[j]
+        dθ[j] < 0 && (dθ[j] += 2π)
     end
     dθ[end] = dθ[1]
 
@@ -527,7 +532,7 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
     flat[5] = MXH_moment(Δθᵣ, Fm, dθ)
 
     L = (length(flat) - 5) ÷ 2
-    @views MXH_coeffs!(flat[(6 + L):(5 + 2L)], flat[6:(5 + L)], θ, Δθᵣ, dθ; Fm)
+    @views MXH_coeffs!(flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
     return flat
 end
 
@@ -549,10 +554,10 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
-function (mxh::MXH)(N::Integer=100; adaptive::Bool = true)
+function (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
     if adaptive
         step = mxh.R0 / N
-        a = mxh.ϵ * mxh.R0    
+        a = mxh.ϵ * mxh.R0
         NN = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
     else
         NN = N
@@ -560,7 +565,7 @@ function (mxh::MXH)(N::Integer=100; adaptive::Bool = true)
     Θ = LinRange(0, 2π, NN)
     tmp = mxh.(Θ)
     tmp[end] = tmp[1]
-    return [r for (r,z) in tmp],[z for (r,z) in tmp]
+    return [r for (r, z) in tmp], [z for (r, z) in tmp]
 end
 
 function R_MXH(θ::Real, mxh::MXH, a=nothing)
@@ -594,7 +599,7 @@ end
     θr = θ + c0 + cs
     return R_MXH(R0, a, θr)
 end
-@inline R_MXH(R0, a, θr) =  R0 + a * cos(θr)
+@inline R_MXH(R0, a, θr) = R0 + a * cos(θr)
 
 @inline function cs_sum(θ::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     tot = 0.0
