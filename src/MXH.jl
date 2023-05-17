@@ -606,7 +606,8 @@ end
     @inbounds for m in eachindex(c)
         S = s[m]
         C = c[m]
-        tot += dot((S, C), sincos(m * θ))
+        scm = sincos(m * θ)
+        tot += S * scm[1] + C * scm[2]
     end
     return tot
 end
@@ -616,7 +617,9 @@ end
     @inbounds for m in eachindex(c)
         S = s[m]
         C = c[m]
-        tot += m * dot((-C, S), sincos(m * θ))
+        scm = sincos(m * θ)
+        tot += m * (S * scm[2] - C * smc[1])
+        #dot((-C, S), sincos(m * θ))
     end
     return tot
 end
