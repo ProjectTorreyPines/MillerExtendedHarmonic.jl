@@ -15,11 +15,11 @@ end
 
 function in_surface(R::Real, Z::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real,
     c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
-    a = R0 * ϵ
-    abs(R - R0) > a && return false
 
+    a = R0 * ϵ
     b = a * κ
-    abs(Z - Z0) > b && return false
+
+    !in_box(R, Z, R0, Z0, ϵ, κ; a, b) && return false
 
     θo = asin((Z0 - Z)/b)
     Ro = R_MXH(θo, R0, ϵ, c0, c, s, a)
@@ -31,6 +31,36 @@ function in_surface(R::Real, Z::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real, c0
 
     return true
 end
+
+
+function in_box(R::Real, Z::Real, mxh::MXH; inclusive=true, debug=false)
+    R0 = mxh.R0
+    Z0 = mxh.Z0
+    ϵ = mxh.ϵ
+    κ = mxh.κ
+    in_box(R, Z, R0, Z0, ϵ, κ; inclusive, debug)
+end
+
+function in_box(R::Real, Z::Real, flat::AbstractVector{<:Real}; inclusive=true, debug=false)
+    in_box(R, Z, unflatten_view(flat)...; inclusive, debug)
+end
+
+function in_box(R::Real, Z::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real,
+                c::AbstractVector{<:Real}, s::AbstractVector{<:Real};
+                a::Real = R0 * ϵ, b::Real = a * κ, inclusive=true, debug=false)
+    return in_box(R, Z, R0, Z0, ϵ, κ; inclusive, debug)
+end
+
+function in_box(R::Real, Z::Real, R0::Real, Z0::Real, ϵ::Real, κ::Real;
+                a::Real = R0 * ϵ, b::Real = a * κ, inclusive=true, debug=false)
+    debug && println((R-R0, a))
+    if inclusive
+        return abs(R - R0) <= a && abs(Z - Z0) <= b
+    else
+        return abs(R - R0) < a && abs(Z - Z0) < b
+    end
+end
+
 
 """
 Returns the angle on surface at height Z closest to R
