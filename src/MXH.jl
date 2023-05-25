@@ -193,7 +193,7 @@ Compute Fourier coefficients for Miller-extended-harmonic representation:
 
 Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes
 """
-function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit::Bool=false)
+function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false)
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
@@ -201,7 +201,8 @@ function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
-              θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit::Bool=false)
+    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing,
+    optimize_fit=false)
     rmin = 0.0
     rmax = 0.0
     zmin = 0.0
@@ -220,9 +221,9 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     end
     R0 = 0.5 * (rmax + rmin)
     Z0 = 0.5 * (zmax + zmin)
-    a  = 0.5 * (rmax - rmin)
-    b  = 0.5 * (zmax - zmin)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm; optimize_fit)
+    a = 0.5 * (rmax - rmin)
+    b = 0.5 * (zmax - zmin)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit)
 end
 
 function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
@@ -281,7 +282,6 @@ function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}
     @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz)
     th = 0.0
     thr = 0.0
-
     jrmax = argmax(pr)
     jzmin = argmin(pz)
     jrmin = argmin(pr)
@@ -345,23 +345,21 @@ function MXH_coeffs!(sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVec
 end
 
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
-             θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit::Bool=false)
+    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm; optimize_fit)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-              θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing;
-              optimize_fit::Bool=false)
-    MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr); optimize_fit)
+    θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false)
+    MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-              θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real};
-              optimize_fit::Bool=false)
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real}, optimize_fit=false)
 
     @assert length(pr) == length(pz)
 
@@ -383,11 +381,12 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, 
 
     Fm .= 1.0  # cos(0 * θ)
     mxh.c0 = MXH_moment(Δθᵣ, Fm, dθ)
+
     MXH_coeffs!(mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
 
     if optimize_fit
         flat = flat_coeffs(mxh)
-        optimize_fit!(flat, pr, pz)
+        optimize_fit!(flat, pr, pz; debug=true)
         R0, Z0, ϵ, κ, c0, c, s = unflatten_view(flat)
         mxh.R0 = R0
         mxh.Z0 = Z0
@@ -442,7 +441,7 @@ function fit_residual(x, pr, pz)
     return res
 end
 
-function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; inner_optimizer=Optim.LBFGS())
+function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; inner_optimizer=Optim.LBFGS(), debug=false)
 
     f = x -> fit_residual(x, pr, pz)
 
@@ -474,6 +473,7 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
     upper[4] = Zmax + δb
     lower[5:end] .= -0.5 * π
     upper[5:end] .= 0.5 * π
+    #    debug && println("Original: ", f(flat))
     M0 = 5
     M = (length(flat) - 5) ÷ 2
     if M > M0
@@ -484,6 +484,7 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
     algo = Optim.Fminbox(inner_optimizer)
     options = Optim.Options()#store_trace=true, show_trace=true)
     res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff=:forward)
+    #debug && println("Residual: ", f(res.minimizer))
 
     Rmin = res.minimizer[1]
     Rmax = res.minimizer[2]
@@ -561,13 +562,10 @@ function (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
     else
         NN = N
     end
-    θ = LinRange(0, 2π, NN)
-    R = zeros(NN)
-    Z = zeros(NN)
-    for (i, t) in enumerate(θ)
-        R[i], Z[i] = mxh(t)
-    end
-    return R, Z
+    Θ = LinRange(0, 2π, NN)
+    tmp = mxh.(Θ)
+    tmp[end] = tmp[1]
+    return [r for (r, z) in tmp], [z for (r, z) in tmp]
 end
 
 function R_MXH(θ::Real, mxh::MXH, a=nothing)
@@ -575,6 +573,12 @@ function R_MXH(θ::Real, mxh::MXH, a=nothing)
 end
 
 function R_MXH(θ::Real, flat::AbstractVector{<:Real}, a=nothing)
+    # L = (length(flat) - 5) ÷ 2
+    # R0 = flat[1]
+    # ϵ  = flat[3]
+    # c0 = flat[5]
+    # @views r = R_MXH(θ, R0, ϵ, c0, flat[6:(5 + L)], flat[(6 + L):(5 + 2L)], a)
+    # return r
     return R_MXH(θ, unflatten_view(flat)..., a)
 end
 
@@ -618,13 +622,6 @@ end
         #dot((-C, S), sincos(m * θ))
     end
     return tot
-end
-
-@inline function R_at_Zext(minmax::Symbol, R0::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}, a::Real)
-    @views totc = sum(c[4:4:end]) - sum(c[2:4:end])
-    @views tots = sum(s[1:4:end]) - sum(s[3:4:end])
-    θr = (minmax === :min) ? halfpi + c0 + totc + tots : -halfpi + c0 + totc - tots
-    return R_MXH(R0, a, θr)
 end
 
 Z_MXH(θ::Real, mxh::MXH, a=nothing) = Z_MXH(θ, mxh.R0, mxh.Z0, mxh.ϵ, mxh.κ, a)
