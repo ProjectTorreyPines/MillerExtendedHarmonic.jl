@@ -601,6 +601,13 @@ end
 end
 @inline R_MXH(R0, a, θr) = R0 + a * cos(θr)
 
+@inline function R_at_Zext(minmax::Symbol, R0::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}, a::Real)
+    @views totc = sum(c[4:4:end]) - sum(c[2:4:end])
+    @views tots = sum(s[1:4:end]) - sum(s[3:4:end])
+    θr = (minmax === :min) ? halfpi + c0 + totc + tots : -halfpi + c0 + totc - tots
+    return R_MXH(R0, a, θr)
+end
+
 @inline function cs_sum(θ::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     tot = 0.0
     @inbounds for m in eachindex(c)
