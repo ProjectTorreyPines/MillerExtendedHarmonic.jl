@@ -169,6 +169,14 @@ end
 
 @inline Jacobian(R::Real, R_ρ::Real, R_θ::Real, Z_ρ::Real, Z_θ::Real) = R * (R_θ * Z_ρ - Z_θ * R_ρ)
 
+function JacMat(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+    dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
+    θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds)
+    R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
+
+    return R_ρ, R_θ, Z_ρ, Z_θ
+end
+
 function ∇ρ(θ::Real, mxh::MXH, dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
     return ∇ρ(θ, mxh.R0, mxh.ϵ, mxh.κ, mxh.c0, mxh.c, mxh.s, dR0, dZ0, dϵ, dκ, dc0, dc, ds)
 end
