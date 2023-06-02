@@ -230,8 +230,8 @@ function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
     @assert length(pr) == length(pz)
 
     # flip to clockwise so θ will increase
-    @views Rmax = argmax(pr[1:end-1])
-    if pz[Rmax+1] > pz[Rmax]
+    @views iRmax = argmax(pr)
+    if pz[mod1(iRmax + 1, length(pr))] > pz[iRmax]
         reverse!(pr)
         reverse!(pz)
     end
@@ -244,22 +244,16 @@ function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:
 end
 
 function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real; force_close::Bool=true)
-    # flip to clockwise so θ will increase
-    clockwise!(pr, pz)
-
     # find point closest to the midplane (1st quadrant)
     @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
 
-    # sort points in flux surface so that istart is the first point
+    # sort points in flux surface so that istart is the first point and surface is clockwise
     reorder_flux_surface!(pr, pz, istart; force_close)
 
     return pr, pz
 end
 
 function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, istart::Int; force_close::Bool=true)
-    # flip to clockwise so θ will increase
-    clockwise!(pr, pz)
-
     if force_close
         pr[end] = (pr[end] + pr[1]) / 2.0
         pz[end] = (pz[end] + pz[1]) / 2.0
@@ -272,6 +266,9 @@ function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:
         pr[end] = pr[1]
         pz[end] = pz[1]
     end
+
+    # flip to clockwise so θ will increase
+    clockwise!(pr, pz)
 
     return pr, pz
 end
