@@ -97,17 +97,34 @@ function copy_MXH!(mxh1::MXH, mxh2::MXH)
 end
 
 """
-    MXH_moment(f, w, d)
+    MXH_moment_trapz(f, w, d)
 
-This does Int[f.w]/Int[w.w]
+This does Int[f.w]/Int[w.w] using Trapezoidal method
 If w is a pure Fourier mode, this gives the Fourier coefficient
 """
-function MXH_moment(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, d::AbstractVector{<:Real})
-    # Could probably be replaced by some Julia trapz
+function MXH_moment_trapz(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, dx::AbstractVector{<:Real})
+    # Could probably be replaced by Trapz.jl
     N = length(f)
-    @assert length(w) == length(d) == N
-    @inbounds s0 = sum((f[i] * w[i] + f[i+1] * w[i+1]) * d[i] for i in 1:(N-1))
-    @inbounds s1 = sum((w[i]^2 + w[i+1]^2) * d[i] for i in 1:(N-1))
+    @assert length(w) == length(dx) == N
+    @inbounds s0 = sum((f[i] * w[i] + f[i+1] * w[i+1]) * dx[i] for i in 1:(N-1))
+    @inbounds s1 = sum((w[i]^2 + w[i+1]^2) * dx[i] for i in 1:(N-1))
+    res = s0 / s1
+    return res
+end
+
+"""
+    MXH_moment_spline(f, w, x)
+
+This does Int[f.w]/Int[w.w] using B-splines
+If w is a pure Fourier mode, this gives the Fourier coefficient
+"""
+function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, x::AbstractVector{<:Real})
+    @assert length(w) == length(x) == length(f)
+
+    spl0 = Spline1D(x, f .* w)
+    spl1 = Spline1D(x, w.^2)
+    s0 = integrate(spl0,x[begin],x[end])
+    s1 = integrate(spl1,x[begin],x[end])
     res = s0 / s1
     return res
 end
@@ -184,25 +201,25 @@ function find_extrema(R, Z)
 end
 
 """
-    MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer) where {T<:Real}
+    MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer; spline=false) where {T<:Real}
 
 Compute Fourier coefficients for Miller-extended-harmonic representation:
 
     R(r,θ) = R(r) + a(r)*cos(θᵣ(r,θ)) where θᵣ(r,θ) = θ + C₀(r) + sum[Cᵢ(r)*cos(i*θ) + Sᵢ(r)*sin(i*θ)]
     Z(r,θ) = Z(r) - κ(r)*a(r)*sin(θ)
 
-Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes
+Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes. Spline keyword indicates to use spline integration for modes
 """
-function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false)
+function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit)
+    return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing,
-    optimize_fit=false)
+    optimize_fit=false, spline=false)
     rmin = 0.0
     rmax = 0.0
     zmin = 0.0
@@ -223,7 +240,7 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     Z0 = 0.5 * (zmax + zmin)
     a = 0.5 * (rmax - rmin)
     b = 0.5 * (zmax - zmin)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
 function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
@@ -327,36 +344,65 @@ function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}
     end
 end
 
-function MXH_coeffs!(sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
+function MXH_coeffs_trapz!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
     Fm::Union{AbstractVector{<:Real},Nothing}=nothing)
     @assert length(sin_coeffs) == length(cos_coeffs)
     Fm === nothing && (Fm = similar(θ))
+
+    @inbounds @views for j in eachindex(dθ)[1:end-1]
+        dθ[j] = θ[j+1] - θ[j]
+        dθ[j] < 0 && (dθ[j] += 2π)
+    end
+    dθ[end] = dθ[1]
+
+    Fm .= 1.0
+    c0[] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
+
     @inbounds for m in eachindex(sin_coeffs)
         Fm .= sin.(m .* θ)
-        sin_coeffs[m] = MXH_moment(Δθᵣ, Fm, dθ)
+        sin_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
 
         Fm .= cos.(m .* θ)
-        cos_coeffs[m] = MXH_moment(Δθᵣ, Fm, dθ)
+        cos_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
+    end
+end
+
+function MXH_coeffs_spline!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
+    Fm::Union{AbstractVector{<:Real},Nothing}=nothing)
+    @assert length(sin_coeffs) == length(cos_coeffs)
+    Fm === nothing && (Fm = similar(θ))
+
+    Fm .= 1.0
+    c0[] = MXH_moment_spline(Δθᵣ, Fm, θ)
+
+    @inbounds for m in eachindex(sin_coeffs)
+        Fm .= sin.(m .* θ)
+        sin_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ)
+
+        Fm .= cos.(m .* θ)
+        cos_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ)
     end
 end
 
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
-    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing)
+    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-    θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false)
-    MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit)
+    θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false, spline=false)
+    MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit, spline)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real}, optimize_fit=false)
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
+    optimize_fit=false, spline=false)
 
     @assert length(pr) == length(pz)
 
@@ -370,16 +416,13 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, 
     # Calculate angles with proper branches
     MXH_angles!(θ, Δθᵣ, pr, pz, R0, Z0, a, b)
 
-    @inbounds @views for j in eachindex(dθ)[1:end-1]
-        dθ[j] = θ[j+1] - θ[j]
-        dθ[j] < 0 && (dθ[j] += 2π)
+    c0 = Ref(0.0)
+    if spline
+        @views MXH_coeffs_spline!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
+    else
+        @views MXH_coeffs_trapz!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
     end
-    dθ[end] = dθ[1]
-
-    Fm .= 1.0  # cos(0 * θ)
-    mxh.c0 = MXH_moment(Δθᵣ, Fm, dθ)
-
-    MXH_coeffs!(mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
+    mxh.c0 = c0[]
 
     if optimize_fit
         flat = flat_coeffs(mxh)
@@ -500,7 +543,7 @@ end
 
 function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real};
-    rmin::Real=minimum(pr), rmax::Real=maximum(pr), zmin::Real=minimum(pz), zmax::Real=maximum(pz))
+    rmin::Real=minimum(pr), rmax::Real=maximum(pr), zmin::Real=minimum(pz), zmax::Real=maximum(pz), spline::Bool=false)
 
     @assert length(pr) == length(pz)
 
@@ -519,17 +562,14 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
     # Calculate angles with proper branches
     MXH_angles!(θ, Δθᵣ, pr, pz, R0, Z0, a, b)
 
-    @inbounds @views for j in eachindex(dθ)[1:end-1]
-        dθ[j] = θ[j+1] - θ[j]
-        dθ[j] < 0 && (dθ[j] += 2π)
-    end
-    dθ[end] = dθ[1]
-
-    Fm .= 1.0  # cos(0 * θ)
-    flat[5] = MXH_moment(Δθᵣ, Fm, dθ)
-
     L = (length(flat) - 5) ÷ 2
-    @views MXH_coeffs!(flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
+    c0 = Ref(0.0)
+    if spline
+        @views MXH_coeffs_spline!(c0,flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
+    else
+        @views MXH_coeffs_trapz!(c0,flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
+    end
+    flat[5] = c0[]
     return flat
 end
 

@@ -3,6 +3,7 @@ module MillerExtendedHarmonic
 using RecipesBase
 import LinearAlgebra: dot
 using Optim
+using Dierckx
 
 const halfpi = 0.5 * π
 
