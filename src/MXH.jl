@@ -122,9 +122,9 @@ function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real},
     @assert length(w) == length(x) == length(f)
 
     spl0 = Spline1D(x, f .* w)
-    spl1 = Spline1D(x, w.^2)
-    s0 = integrate(spl0,x[begin],x[end])
-    s1 = integrate(spl1,x[begin],x[end])
+    spl1 = Spline1D(x, w .^ 2)
+    s0 = integrate(spl0, x[begin], x[end])
+    s1 = integrate(spl1, x[begin], x[end])
     res = s0 / s1
     return res
 end
@@ -243,7 +243,14 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
     return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
-function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
+"""
+    clockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
+
+Given `pr` and `pz` vectors flip them so that θ will increase.
+
+Additional vectors will be treated the same. 
+"""
+function clockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
     @assert length(pr) == length(pz)
 
     # flip to clockwise so θ will increase
@@ -251,16 +258,47 @@ function clockwise!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real})
     if pz[mod1(iRmax + 1, length(pr))] > pz[iRmax]
         reverse!(pr)
         reverse!(pz)
+        for arg in args
+            reverse!(arg)
+        end
     end
 
-    return pr, pz
+    return nothing
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; force_close::Bool=true)
+"""
+    counterclockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
+
+Given `pr` and `pz` vectors flip them so that θ will decrease.
+
+Additional vectors will be treated the same. 
+"""
+function counterclockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
+    @assert length(pr) == length(pz)
+
+    # flip to counter-clockwise so θ will decrease
+    @views iRmax = argmax(pr)
+    if pz[mod1(iRmax + 1, length(pr))] < pz[iRmax]
+        reverse!(pr)
+        reverse!(pz)
+        for arg in args
+            reverse!(arg)
+        end
+    end
+
+    return nothing
+end
+
+"""
+    reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+
+Reorder flux surface `pr`and `pz` vectors so that the first point is the one closest to the midplane (1st quadrant) and surface is clockwise
+"""
+function reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     return reorder_flux_surface!(pr, pz, sum(pr) / length(pr), sum(pz) / length(pz); force_close)
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real; force_close::Bool=true)
+function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     # find point closest to the midplane (1st quadrant)
     @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
 
@@ -270,7 +308,7 @@ function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:
     return pr, pz
 end
 
-function reorder_flux_surface!(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, istart::Int; force_close::Bool=true)
+function reorder_flux_surface!(pr::T, pz::T, istart::Int; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     if force_close
         pr[end] = (pr[end] + pr[1]) / 2.0
         pz[end] = (pz[end] + pz[1]) / 2.0
@@ -441,7 +479,6 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, 
 end
 
 function fit_residual(x, pr, pz)
-
     Rmin = x[1]
     Rmax = x[2]
     Zmin = x[3]
@@ -565,9 +602,9 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
     L = (length(flat) - 5) ÷ 2
     c0 = Ref(0.0)
     if spline
-        @views MXH_coeffs_spline!(c0,flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
+        @views MXH_coeffs_spline!(c0, flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
     else
-        @views MXH_coeffs_trapz!(c0,flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
+        @views MXH_coeffs_trapz!(c0, flat[(6+L):(5+2L)], flat[6:(5+L)], θ, Δθᵣ, dθ; Fm)
     end
     flat[5] = c0[]
     return flat
