@@ -120,12 +120,16 @@ If w is a pure Fourier mode, this gives the Fourier coefficient
 """
 function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, x::AbstractVector{<:Real})
     @assert length(w) == length(x) == length(f)
-
-    spl0 = Spline1D(x, f .* w)
-    spl1 = Spline1D(x, w .^ 2)
-    s0 = integrate(spl0, x[begin], x[end])
-    s1 = integrate(spl1, x[begin], x[end])
-    res = s0 / s1
+    res = 0.0
+    try
+        spl0 = Spline1D(x, f .* w)
+        spl1 = Spline1D(x, w .^ 2)
+        s0 = integrate(spl0, x[begin], x[end])
+        s1 = integrate(spl1, x[begin], x[end])
+        res = s0 / s1
+    catch
+        res = NaN
+    end
     return res
 end
 
@@ -235,6 +239,35 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
         rmax = maximum(pr)
         zmin = minimum(pz)
         zmax = maximum(pz)
+    end
+
+    if spline
+        t = collect(range(0.0,1.0,length=length(pr)))
+        r_spl = Spline1D(t, pr; periodic=true)
+        z_spl = Spline1D(t, pz; periodic=true)
+
+        tr = Roots.find_zeros(x->derivative(r_spl, x), 0.0, 1.0)
+        tz = Roots.find_zeros(x->derivative(z_spl, x), 0.0, 1.0)
+        ts = vcat(tr,tz)
+        r_ext = r_spl(ts)
+        z_ext = z_spl(ts)
+
+        rmax, irmax = findmax(r_ext)
+        rmin, irmin = findmin(r_ext)
+        trmax, trmin = ts[irmax], ts[irmin]
+        z_rmax, z_rmin = z_spl(trmax), z_spl(trmin)
+
+        zmax, izmax = findmax(z_ext)
+        zmin, izmin = findmin(z_ext)
+        tzmax, tzmin = ts[izmax], ts[izmin]
+        r_zmax, r_zmin = r_spl(tzmax), r_spl(tzmin)
+
+        for (tt, rr, zz) in [(trmin,rmin,z_rmin),(trmax,rmax,z_rmax),(tzmin,r_zmin,zmin),(tzmax,r_zmax,zmax)]
+            i = findfirst(x -> x > tt, t)
+            insert!(t, i, tt)
+            insert!(pr, i, rr)
+            insert!(pz, i, zz)
+        end
     end
     R0 = 0.5 * (rmax + rmin)
     Z0 = 0.5 * (zmax + zmin)
@@ -421,6 +454,11 @@ function MXH_coeffs_spline!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real},
 
         Fm .= cos.(m .* θ)
         cos_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ)
+    end
+
+    # trapz backup incase spline fails for whatever reason
+    if !isfinite(c0[]) || any(!isfinite, sin_coeffs) || any(!isfinite, cos_coeffs)
+        MXH_coeffs_trapz!(c0, sin_coeffs, cos_coeffs, θ, Δθᵣ, dθ; Fm)
     end
 end
 
