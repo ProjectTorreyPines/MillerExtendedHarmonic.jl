@@ -74,10 +74,33 @@ function Tr_dTrdρ_dTrdθ(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::Abst
         θr     += dot((S, C),   scmt)
         dθr_dρ += dot((dS, dC), scmt)
         dθr_dθ += m * dot((-C, S),  scmt)
-        # smt, cmt = sincos(m * θ)
-        # θr     += S * smt + C * cmt
-        # dθr_dρ += dS * smt + dC * cmt
-        # dθr_dθ += m * (-C * smt + S * cmt)
+    end
+    return θr, dθr_dρ, dθr_dθ
+end
+
+@inline function θindex(θ::Real, F::AbstractMatrix{<:Real})
+    _, L = size(F)
+    return θindex(θ, L)
+end
+
+@inline θindex(θ::Real, L::Int) = Int(round(θ * L * inv_twopi)) + 1
+
+function Tr_dTrdρ_dTrdθ(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                        dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real},
+                        Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+    θr = θ + c0
+    dθr_dρ = dc0
+    dθr_dθ = one(promote_type(typeof(θ), eltype(s), eltype(c))) # maintain type stability with FowardDiff
+    l = θindex(θ, Fsin)
+    @inbounds for m in eachindex(c)
+        S  = s[m]
+        C  = c[m]
+        dS = ds[m]
+        dC = dc[m]
+        scmt = (Fsin[m, l], Fcos[m, l])
+        θr     += dot((S, C),   scmt)
+        dθr_dρ += dot((dS, dC), scmt)
+        dθr_dθ += m * dot((-C, S),  scmt)
     end
     return θr, dθr_dρ, dθr_dθ
 end
@@ -150,6 +173,24 @@ function dRdρ_dRdθ_dZdρ_dZdθ(θ::Real, R0::Real, ϵ::Real, κ::Real, θr::Re
     db  = da * κ
     db += a * dκ
     st, ct = sincos(θ)
+    Z_ρ = dZ0 - db * st
+    Z_θ = -a * κ * ct
+    return R_ρ, R_θ, Z_ρ, Z_θ
+end
+
+function dRdρ_dRdθ_dZdρ_dZdθ(θ::Real, R0::Real, ϵ::Real, κ::Real, θr::Real, dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dθr_dρ::Real, dθr_dθ::Real,
+                             Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+    a = R0 * ϵ
+    da = R0 * dϵ + dR0 * ϵ
+    sctr = sincos(θr)
+    R_ρ = dR0 + dot((-a * dθr_dρ, da), sctr)
+    R_θ = -a * sctr[1] * dθr_dθ
+
+    db  = da * κ
+    db += a * dκ
+    l = θindex(θ, Fsin)
+    st = Fsin[1, l]
+    ct = Fcos[1, l]
     Z_ρ = dZ0 - db * st
     Z_θ = -a * κ * ct
     return R_ρ, R_θ, Z_ρ, Z_θ
@@ -311,6 +352,25 @@ function gρρ_gρθ_gθθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::
                  dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
     θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds)
     R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
+    grr = R_θ^2 + Z_θ^2
+    grt = -(R_ρ * R_θ + Z_ρ * Z_θ)
+    gtt = R_ρ^2 + Z_ρ^2
+    if grr != 0.0
+        a = R0 * ϵ
+        R = R_MXH(R0, a, θr)
+        J = Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
+        grr /= J
+        grt /= J
+        gtt /= J
+    end
+    return grr, grt, gtt
+end
+
+function gρρ_gρθ_gθθ(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                 dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real},
+                 Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+    θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds, Fsin, Fcos)
+    R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ, Fsin, Fcos)
     grr = R_θ^2 + Z_θ^2
     grt = -(R_ρ * R_θ + Z_ρ * Z_θ)
     gtt = R_ρ^2 + Z_ρ^2
