@@ -22,7 +22,7 @@ end
 
 dTr_dθ(θ::Real, mxh::MXH) = dTr_dθ(θ, mxh.c, mxh.s)
 function dTr_dθ(θ::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
-    dθr_dθ = 1.0
+    dθr_dθ = one(promote_type(typeof(θ), eltype(s), eltype(c)))
     @inbounds for m in eachindex(c)
         S = s[m]
         C = c[m]
@@ -49,7 +49,7 @@ end
 
 function Tr_dTrdθ(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     θr = θ + c0
-    dθr_dθ = 1.0
+    dθr_dθ = one(promote_type(typeof(θ), eltype(s), eltype(c)))
     @inbounds for m in eachindex(c)
         S  = s[m]
         C  = c[m]
@@ -64,7 +64,7 @@ function Tr_dTrdρ_dTrdθ(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::Abst
                         dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
     θr = θ + c0
     dθr_dρ = dc0
-    dθr_dθ = 1.0
+    dθr_dθ = one(promote_type(typeof(θ), eltype(s), eltype(c))) # maintain type stability with FowardDiff
     @inbounds for m in eachindex(c)
         S  = s[m]
         C  = c[m]

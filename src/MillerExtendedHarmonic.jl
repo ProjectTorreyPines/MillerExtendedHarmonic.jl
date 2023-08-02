@@ -6,6 +6,8 @@ using Optim
 using Dierckx
 
 const halfpi = 0.5 * π
+const twopi = 2π
+const inv_twopi = 1.0 / twopi
 
 include("MXH.jl")
 export MXH, MXH!, R_MXH, Z_MXH, flat_coeffs, flat_coeffs!, copy_MXH!, MXH_coeffs!
