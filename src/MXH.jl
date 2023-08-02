@@ -127,8 +127,12 @@ function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real},
         s0 = integrate(spl0, x[begin], x[end])
         s1 = integrate(spl1, x[begin], x[end])
         res = s0 / s1
-    catch
-        res = NaN
+    catch e
+        if isa(e, ErrorException)
+            res = NaN
+        else
+            rethrow(e)
+        end
     end
     return res
 end
