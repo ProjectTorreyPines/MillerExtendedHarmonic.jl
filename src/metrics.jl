@@ -15,6 +15,19 @@ Tr(θ::Real, mxh::MXH) = Tr(θ, mxh.c0, mxh.c, mxh.s)
     return θ + ΔTr(θ, c0, c, s)
 end
 
+function Tr(θ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+            Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+    θr = θ + c0
+    l = θindex(θ, Fsin)
+    @inbounds for m in eachindex(c)
+        S  = s[m]
+        C  = c[m]
+        scmt = (Fsin[m, l], Fcos[m, l])
+        θr += dot((S, C),   scmt)
+    end
+    return θr
+end
+
 dTr_dρ(θ::Real, mxh::MXH, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real}) = dTr_dρ(θ, dc0, dc, ds)
 @inline function dTr_dρ(θ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real})
     return ΔTr(θ, dc0, dc, ds)
@@ -206,6 +219,16 @@ function Jacobian(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractV
     R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ)
     R = R_MXH(R0, a, θr)
     return Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
+end
+
+function Jacobian(θ::Real, R0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real},
+                  dR0::Real, dZ0::Real, dϵ::Real, dκ::Real, dc0::Real, dc::AbstractVector{<:Real}, ds::AbstractVector{<:Real},
+                  Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+a = ϵ * R0
+θr, dθr_dρ, dθr_dθ = Tr_dTrdρ_dTrdθ(θ, c0, c, s, dc0, dc, ds, Fsin, Fcos)
+R_ρ, R_θ, Z_ρ, Z_θ = dRdρ_dRdθ_dZdρ_dZdθ(θ, R0, ϵ, κ, θr, dR0, dZ0, dϵ, dκ, dθr_dρ, dθr_dθ, Fsin, Fcos)
+R = R_MXH(R0, a, θr)
+return Jacobian(R, R_ρ, R_θ, Z_ρ, Z_θ)
 end
 
 @inline Jacobian(R::Real, R_ρ::Real, R_θ::Real, Z_ρ::Real, Z_θ::Real) = R * (R_θ * Z_ρ - Z_θ * R_ρ)
