@@ -294,21 +294,21 @@ end
 
 Reorder flux surface `pr`and `pz` vectors so that the first point is the one closest to the midplane (1st quadrant) and surface is clockwise
 """
-function reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
-    return reorder_flux_surface!(pr, pz, sum(pr) / length(pr), sum(pz) / length(pz); force_close)
+function reorder_flux_surface!(pr::T, pz::T, args::Vararg{T}; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+    return reorder_flux_surface!(pr, pz, sum(pr) / length(pr), sum(pz) / length(pz), args...; force_close)
 end
 
-function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real, args::Vararg{T}; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     # find point closest to the midplane (1st quadrant)
     @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
 
     # sort points in flux surface so that istart is the first point and surface is clockwise
-    reorder_flux_surface!(pr, pz, istart; force_close)
+    reorder_flux_surface!(pr, pz, istart, args...; force_close)
 
     return pr, pz
 end
 
-function reorder_flux_surface!(pr::T, pz::T, istart::Int; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+function reorder_flux_surface!(pr::T, pz::T, istart::Int, args::Vararg{T}; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     if force_close
         pr[end] = (pr[end] + pr[1]) / 2.0
         pz[end] = (pz[end] + pz[1]) / 2.0
@@ -320,10 +320,13 @@ function reorder_flux_surface!(pr::T, pz::T, istart::Int; force_close::Bool=true
         @views pz[1:end-1] .= circshift(pz[1:end-1], 1 - istart)
         pr[end] = pr[1]
         pz[end] = pz[1]
+        for arg in args
+            @views arg[1:end-1] .= circshift(arg[1:end-1], 1 - istart)
+        end
     end
 
     # flip to clockwise so θ will increase
-    clockwise!(pr, pz)
+    clockwise!(pr, pz, args...)
 
     return pr, pz
 end
@@ -628,6 +631,11 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "s: $(mxh.s)")
 end
 
+"""
+    (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
+
+NOTE: when `adaptive` then N is a relative scale, not the actual lenght of the array
+"""
 function (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
     if adaptive
         step = mxh.R0 / N
