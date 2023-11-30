@@ -34,12 +34,24 @@ function MXH(R0::Real, n_coeffs::Integer)
     return MXH(R0, 0.0, 0.3, 1.0, 0.0, zeros(n_coeffs), zeros(n_coeffs))
 end
 
+# autodiff compatible
 function flat_coeffs(mxh::MXH)
+    flat = vcat(
+        mxh.R0,
+        mxh.Z0,
+        mxh.ϵ,
+        mxh.κ,
+        mxh.c0,
+        mxh.c,
+        mxh.s
+    )
+
     L = length(mxh.c)
-    flat = zeros(5 + 2L)
-    return flat_coeffs!(flat, mxh)
+    @assert length(flat) == 5 + 2L
+    return flat
 end
 
+# Not autodiff compatible
 function flat_coeffs!(flat::AbstractVector{<:Real}, mxh::MXH)
     L = length(mxh.c)
     @assert length(flat) == 5 + 2L
