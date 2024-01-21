@@ -307,7 +307,7 @@ end
 Reorder flux surface `pr`and `pz` vectors so that the first point is the one closest to the midplane (1st quadrant) and surface is clockwise
 """
 function reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
-    return reorder_flux_surface!(pr, pz, sum(pr) / length(pr), sum(pz) / length(pz); force_close)
+    return reorder_flux_surface!(pr, pz, (maximum(pr) + minimum(pr)) * 0.5, (maximum(pz) + minimum(pz)) * 0.5; force_close)
 end
 
 function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
