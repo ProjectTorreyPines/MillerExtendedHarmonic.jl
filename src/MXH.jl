@@ -322,8 +322,8 @@ end
 
 function reorder_flux_surface!(pr::T, pz::T, istart::Int; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     if force_close
-        pr[end] = (pr[end] + pr[1]) / 2.0
-        pz[end] = (pz[end] + pz[1]) / 2.0
+        pr[end] = pr[1]
+        pz[end] = pz[1]
     end
 
     # start from low-field side point above z0 (only if flux surface closes)
