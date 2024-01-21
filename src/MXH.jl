@@ -447,7 +447,7 @@ end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
     θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false, spline=false)
-    MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit, spline)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit, spline)
 end
 
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
@@ -637,7 +637,7 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "κ: $(mxh.κ)")
     println(io, "c0: $(mxh.c0)")
     println(io, "c: $(mxh.c)")
-    println(io, "s: $(mxh.s)")
+    return println(io, "s: $(mxh.s)")
 end
 
 function (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
@@ -688,7 +688,7 @@ end
 @inline R_MXH(R0, a, θr) = R0 + a * cos(θr)
 
 function R_MXH(θ::Real, R0::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real}, a::Real,
-               Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
+    Fsin::AbstractMatrix{<:Real}, Fcos::AbstractMatrix{<:Real})
     θr = Tr(θ, c0, c, s, Fsin, Fcos)
     return R_MXH(R0, a, θr)
 end
