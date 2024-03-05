@@ -4,6 +4,7 @@ using RecipesBase
 import LinearAlgebra: dot
 using Optim
 using Dierckx
+using Roots
 
 const halfpi = 0.5 * π
 const twopi = 2π
