@@ -302,30 +302,38 @@ function counterclockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVect
 end
 
 """
-    reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+    reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
 
 Reorder flux surface `pr`and `pz` vectors so that the first point is the one closest to the midplane (1st quadrant) and surface is clockwise
-"""
-function reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
-    return reorder_flux_surface!(pr, pz, (maximum(pr) + minimum(pr)) * 0.5, (maximum(pz) + minimum(pz)) * 0.5; force_close)
-end
 
+NOTE:
+
+  - midplane and clockwise are defined with respect to `R0` and `Z0`
+
+  - first point is the one closest to the midplane only if polygon closes. This is done to avoid doing so for flux surfaces.
+
+  - `force_close` will close the polygon by repeating the first point at the end of the vectors
+"""
 function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+    if force_close && !((pr[1] == pr[end]) && (pz[1] == pz[end]))
+        push!(pr, pr[1])
+        push!(pz, pz[1])
+    end
+
     # find point closest to the midplane (1st quadrant)
     @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
 
     # sort points in flux surface so that istart is the first point and surface is clockwise
-    reorder_flux_surface!(pr, pz, istart; force_close)
+    reorder_flux_surface!(pr, pz, istart)
 
     return pr, pz
 end
 
-function reorder_flux_surface!(pr::T, pz::T, istart::Int; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
-    if force_close
-        pr[end] = pr[1]
-        pz[end] = pz[1]
-    end
+function reorder_flux_surface!(pr::T, pz::T; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
+    return reorder_flux_surface!(pr, pz, (maximum(pr) + minimum(pr)) * 0.5, (maximum(pz) + minimum(pz)) * 0.5; force_close)
+end
 
+function reorder_flux_surface!(pr::T, pz::T, istart::Int) where {T<:AbstractVector{<:Real}}
     # start from low-field side point above z0 (only if flux surface closes)
     if (pr[1] == pr[end]) && (pz[1] == pz[end])
         @views pr[1:end-1] .= circshift(pr[1:end-1], 1 - istart)
