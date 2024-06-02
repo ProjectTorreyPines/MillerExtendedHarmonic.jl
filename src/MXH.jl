@@ -43,9 +43,7 @@ function flat_coeffs(mxh::MXH)
         mxh.κ,
         mxh.c0,
         mxh.c,
-        mxh.s
-    )
-
+        mxh.s)
     L = length(mxh.c)
     @assert length(flat) == 5 + 2L
     return flat
@@ -311,13 +309,17 @@ NOTE:
   - midplane and clockwise are defined with respect to `R0` and `Z0`
 
   - first point is the one closest to the midplane only if polygon closes. This is done to avoid doing so for flux surfaces.
-
-  - `force_close` will close the polygon by repeating the first point at the end of the vectors
+  - `force_close` will close the polygon
 """
 function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bool=true) where {T<:AbstractVector{<:Real}}
     if force_close && !((pr[1] == pr[end]) && (pz[1] == pz[end]))
-        push!(pr, pr[1])
-        push!(pz, pz[1])
+        if sqrt((pr[1] - pr[end])^2 + (pz[1] - pz[end])^2) < 1E-6
+            pr[end] = pr[1]
+            pz[end] = pz[1]
+        else
+            push!(pr, pr[1])
+            push!(pz, pz[1])
+        end
     end
 
     # find point closest to the midplane (1st quadrant)
@@ -335,7 +337,7 @@ end
 
 function reorder_flux_surface!(pr::T, pz::T, istart::Int) where {T<:AbstractVector{<:Real}}
     # start from low-field side point above z0 (only if flux surface closes)
-    if (pr[1] == pr[end]) && (pz[1] == pz[end])
+    if sqrt((pr[1] - pr[end])^2 + (pz[1] - pz[end])^2) < 1E-6
         @views pr[1:end-1] .= circshift(pr[1:end-1], 1 - istart)
         @views pz[1:end-1] .= circshift(pz[1:end-1], 1 - istart)
         pr[end] = pr[1]
@@ -348,10 +350,11 @@ function reorder_flux_surface!(pr::T, pz::T, istart::Int) where {T<:AbstractVect
     return pr, pz
 end
 
-function MXH_angles!(θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real},
+function MXH_angles!(
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real},
     pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real},
     R0::Real, Z0::Real, a::Real, b::Real)
-    @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz)
+    @assert length(θ) == length(Δθᵣ) == length(pr) == length(pz) "length(θ)=$(length(θ)) length(Δθᵣ)=$(length(Δθᵣ)) length(pr)=$(length(pr)) length(pz)=$(length(pz))"
     th = 0.0
     thr = 0.0
     jrmax = argmax(pr)
@@ -631,6 +634,7 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
 end
 
 @recipe function plot_mxh(mxh::MXH; adaptive_grid_N=100)
+    @assert typeof(adaptive_grid_N) <: Int
     @series begin
         aspect_ratio --> :equal
         label --> ""
@@ -648,14 +652,22 @@ function Base.show(io::IO, mxh::MXH)
     return println(io, "s: $(mxh.s)")
 end
 
-function (mxh::MXH)(N::Integer=100; adaptive::Bool=true)
+"""
+    (mxh::MXH)(N::Int=100; adaptive::Bool=true)
+
+Returns (r,z) vectors of given MXH
+
+If `adaptive`, the number of points is specified for the perimeter of a unit circle
+"""
+function (mxh::MXH)(n_points::Int=100; adaptive::Bool=true)
     if adaptive
-        step = mxh.R0 / N
+        step = 2π / n_points
         a = mxh.ϵ * mxh.R0
         NN = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
     else
-        NN = N
+        NN = n_points
     end
+    @assert NN > 0
     Θ = LinRange(0, 2π, NN)
     tmp = mxh.(Θ)
     tmp[end] = tmp[1]
