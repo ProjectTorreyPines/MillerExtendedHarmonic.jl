@@ -34,7 +34,13 @@ function MXH(R0::Real, n_coeffs::Integer)
     return MXH(R0, 0.0, 0.3, 1.0, 0.0, zeros(n_coeffs), zeros(n_coeffs))
 end
 
-# autodiff compatible
+"""
+    flat_coeffs(mxh::MXH)
+
+return all mxh coefficients as an array of floats of length 5 + 2L where L is the number of sin/cos coefficients
+
+NOTE: autodiff compatible
+"""
 function flat_coeffs(mxh::MXH)
     flat = vcat(
         mxh.R0,
@@ -49,7 +55,13 @@ function flat_coeffs(mxh::MXH)
     return flat
 end
 
-# Not autodiff compatible
+"""
+    flat_coeffs!(flat::AbstractVector{<:Real}, mxh::MXH)
+
+return all mxh coefficients as an array of floats of length 5 + 2L where L is the number of sin/cos coefficients
+
+NOTE: operates in place on `flat` input vector and is not autodiff compatible
+"""
 function flat_coeffs!(flat::AbstractVector{<:Real}, mxh::MXH)
     L = length(mxh.c)
     @assert length(flat) == 5 + 2L
@@ -88,13 +100,14 @@ function unflatten_view(flat::AbstractVector{<:Real})
 end
 
 function MXH(flat::AbstractVector{<:Real})
-    #@views R0, Z0, ϵ, κ, c0 = flat[1:5]
-    #L = (length(flat) - 5) ÷ 2
-    #c = flat[6:(5 + L)]
-    #s = flat[(6 + L):(5 + 2L)]
     return MXH(unflatten(flat)...)
 end
 
+"""
+    copy_MXH!(mxh1::MXH, mxh2::MXH)
+
+copy all attributes from mxh2 to mxh1
+"""
 function copy_MXH!(mxh1::MXH, mxh2::MXH)
     mxh1.R0 = mxh2.R0
     mxh1.Z0 = mxh2.Z0
@@ -227,9 +240,12 @@ function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::
     return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
-function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real};
-    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing,
-    optimize_fit=false, spline=false)
+"""
+    MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
+
+like MXH() but operates in place
+"""
+function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
     rmin = 0.0
     rmax = 0.0
     zmin = 0.0

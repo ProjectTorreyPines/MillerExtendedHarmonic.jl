@@ -10,14 +10,13 @@ const twopi = 2π
 const inv_twopi = 1.0 / twopi
 
 include("MXH.jl")
-export MXH, MXH!, R_MXH, Z_MXH, flat_coeffs, flat_coeffs!, copy_MXH!, MXH_coeffs!
-export fit_flattened!, optimize_fit!
+export MXH, MXH!, flat_coeffs, flat_coeffs!, copy_MXH!
 
 include("metrics.jl")
-export Tr, dTr_dρ, dTr_dθ, dR_dρ, dZ_dρ, dR_dθ, dZ_dθ
-export Jacobian, ∇ρ, ∇ρ2, ∇θ, ∇θ2, gρρ, gρθ, gθθ, gρρ_gρθ, gρθ_gθθ, gρρ_gρθ_gθθ
 
 include("relative.jl")
-export in_surface, nearest_angle
 
-end # module
+const document = Dict()
+document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
+
+end
