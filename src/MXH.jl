@@ -339,7 +339,8 @@ function reorder_flux_surface!(pr::T, pz::T, R0::Real, Z0::Real; force_close::Bo
     end
 
     # find point closest to the midplane (1st quadrant)
-    @views istart = argmin(abs.(pz[1:end-1] .- Z0) .+ (pr[1:end-1] .< R0) .+ (pz[1:end-1] .< Z0))
+    f = k -> abs(pz[k] - Z0) + (pr[k] < R0) + (pz[k] < Z0)
+    @views istart = argmin(f(k) for k in eachindex(pr)[1:end-1])
 
     # sort points in flux surface so that istart is the first point and surface is clockwise
     reorder_flux_surface!(pr, pz, istart)
