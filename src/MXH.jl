@@ -4,8 +4,8 @@ mutable struct MXH{T<:Real,U<:AbstractVector{<:Real}}
     ϵ::T   # Inverse aspect ratio a/R0
     κ::T   # Elongation
     c0::T  # Tilt
-    c::U   # Cosine coefficients acos.([ovality,...])
-    s::U   # Sine coefficients asin.([triangularity,-squareness,...]
+    c::U   # Cosine coefficients [ovality, twist]
+    s::U   # Sine coefficients [asin(triangularity),-squareness,...]
     function MXH{T,U}(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T<:Real,U<:AbstractVector{<:Real}}
         return length(c) == length(s) ? new{T,U}(R0, Z0, ϵ, κ, c0, c, s) : throw(DimensionMismatch)
     end
@@ -224,7 +224,20 @@ function find_extrema(R, Z)
 end
 
 """
-    MXH(pr::Vector{T}, pz::Vector{T}, MXH_modes::Integer; spline=false) where {T<:Real}
+    MXH(
+    pr::AbstractVector{<:Real},
+    pz::AbstractVector{<:Real},
+    MXH_modes::Integer=5;
+    θ=nothing,
+    Δθᵣ=nothing,
+    dθ=nothing,
+    Fm=nothing,
+    optimize_fit=false,
+    spline=false,
+    rmin=0.0,
+    rmax=0.0,
+    zmin=0.0,
+    zmax=0.0)
 
 Compute Fourier coefficients for Miller-extended-harmonic representation:
 
@@ -233,34 +246,73 @@ Compute Fourier coefficients for Miller-extended-harmonic representation:
 
 Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes. Spline keyword indicates to use spline integration for modes
 """
-function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, MXH_modes::Integer=5; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
+function MXH(
+    pr::AbstractVector{<:Real},
+    pz::AbstractVector{<:Real},
+    MXH_modes::Integer=5;
+    θ=nothing,
+    Δθᵣ=nothing,
+    dθ=nothing,
+    Fm=nothing,
+    optimize_fit=false,
+    spline=false,
+    rmin=0.0,
+    rmax=0.0,
+    zmin=0.0,
+    zmax=0.0
+)
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
+    return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit, spline, rmin, rmax, zmin, zmax)
 end
 
 """
-    MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
+        MXH!(
+        mxh::MXH,
+        pr::AbstractVector{<:Real},
+        pz::AbstractVector{<:Real};
+        θ=nothing,
+        Δθᵣ=nothing,
+        dθ=nothing,
+        Fm=nothing,
+        optimize_fit=false,
+        spline=false,
+        rmin=0.0,
+        rmax=0.0,
+        zmin=0.0,
+        zmax=0.0)
 
 like MXH() but operates in place
 """
-function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
-    rmin = 0.0
-    rmax = 0.0
-    zmin = 0.0
-    zmax = 0.0
-    if optimize_fit
-        outer, top, inner, bottom = find_extrema(pr, pz)
-        rmin, _ = inner
-        rmax, _ = outer
-        _, zmin = bottom
-        _, zmax = top
-    else
-        rmin = minimum(pr)
-        rmax = maximum(pr)
-        zmin = minimum(pz)
-        zmax = maximum(pz)
+function MXH!(
+    mxh::MXH,
+    pr::AbstractVector{<:Real},
+    pz::AbstractVector{<:Real};
+    θ=nothing,
+    Δθᵣ=nothing,
+    dθ=nothing,
+    Fm=nothing,
+    optimize_fit=false,
+    spline=false,
+    rmin=0.0,
+    rmax=0.0,
+    zmin=0.0,
+    zmax=0.0
+)
+    if rmin == rmax == zmin == zmax == 0.0
+        if optimize_fit
+            outer, top, inner, bottom = find_extrema(pr, pz)
+            rmin, _ = inner
+            rmax, _ = outer
+            _, zmin = bottom
+            _, zmax = top
+        else
+            rmin = minimum(pr)
+            rmax = maximum(pr)
+            zmin = minimum(pz)
+            zmax = maximum(pz)
+        end
     end
     R0 = 0.5 * (rmax + rmin)
     Z0 = 0.5 * (zmax + zmin)
