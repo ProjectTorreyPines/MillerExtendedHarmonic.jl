@@ -24,37 +24,44 @@ function Base.getproperty(mxh::MXH, field::Symbol)
         return getfield(mxh, field)
     end
 
-    if field == :tilt
+    if field in (:a, :minor_radius)
+        return mxh.ϵ * mxh.R0
+
+    elseif field == :elongation
+        return mxh.κ
+
+    elseif field == :tilt
         return mxh.c0
-    end
-    if field in [:δ, :triangularity]
+
+    elseif field in (:δ, :triangularity)
         if length(mxh.s) >= 1
             return sin(mxh.s[1])
         else
             return 0.0
         end
-    end
-    if field in [:ζ, :squareness]
+
+    elseif field in (:ζ, :squareness)
         if length(mxh.s) >= 2
             return -mxh.s[2]
         else
             return 0.0
         end
-    end
-    if field in [:𝚶, :ovality]
+
+    elseif field in (:𝚶, :ovality)
         if length(mxh.c) >= 1
             return mxh.c[1]
         else
             return 0.0
         end
-    end
-    if field == :twist
+
+    elseif field == :twist
         if length(mxh.c) >= 2
             return mxh.c[2]
         else
             return 0.0
         end
     end
+
     return getfield(mxh, field)
 end
 
