@@ -1,7 +1,7 @@
 name = "MillerExtendedHarmonic"
 uuid = "c82744c2-dc08-461a-8c37-87ab04d0f9b8"
 authors = ["Orso Meneghini <orso82@gmail.com>"]
-version = "1.0.3"
+version = "1.0.4"
 
 [deps]
 Dierckx = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
