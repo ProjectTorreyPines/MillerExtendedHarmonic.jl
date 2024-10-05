@@ -19,6 +19,45 @@ function MXH(R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector
     return MXH(promote(R0, Z0, ϵ, κ, c0)..., promote_vectors(c, s)...)
 end
 
+function Base.getproperty(mxh::MXH, field::Symbol)
+    if field in (:R0, :Z0, :ϵ, :κ, :c0, :c, :s)
+        return getfield(mxh, field)
+    end
+
+    if field == :tilt
+        return mxh.c0
+    end
+    if field in [:δ, :triangularity]
+        if length(mxh.s) >= 1
+            return sin(mxh.s[1])
+        else
+            return 0.0
+        end
+    end
+    if field in [:ζ, :squareness]
+        if length(mxh.s) >= 2
+            return -mxh.s[2]
+        else
+            return 0.0
+        end
+    end
+    if field in [:𝚶, :ovality]
+        if length(mxh.c) >= 1
+            return mxh.c[1]
+        else
+            return 0.0
+        end
+    end
+    if field == :twist
+        if length(mxh.c) >= 2
+            return mxh.c[2]
+        else
+            return 0.0
+        end
+    end
+    return getfield(mxh, field)
+end
+
 function promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real},U<:AbstractVector{<:Real}}
     T === U && return c, s
     try
@@ -716,7 +755,11 @@ function Base.show(io::IO, mxh::MXH)
     println(io, "Z0: $(mxh.Z0)")
     println(io, "ϵ: $(mxh.ϵ)")
     println(io, "κ: $(mxh.κ)")
-    println(io, "c0: $(mxh.c0)")
+    println(io, "tilt: $(mxh.c0)")
+    println(io, "δ: $(mxh.δ)")
+    println(io, "ζ: $(mxh.ζ)")
+    println(io, "𝚶: $(mxh.𝚶)")
+    println(io, "twist: $(mxh.twist)")
     println(io, "c: $(mxh.c)")
     return println(io, "s: $(mxh.s)")
 end
