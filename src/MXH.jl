@@ -65,6 +65,36 @@ function Base.getproperty(mxh::MXH, field::Symbol)
     return getfield(mxh, field)
 end
 
+function Base.setproperty!(mxh::MXH, field::Symbol, value::Any)
+    if field in (:R0, :Z0, :ϵ, :κ, :c0, :c, :s)
+        return setfield!(mxh, field, value)
+    end
+
+    if field in (:a, :minor_radius)
+        return setfield!(mxh, :ϵ, value / mxh.R0)
+
+    elseif field == :elongation
+        return setfield!(mxh, :κ, value)
+
+    elseif field == :tilt
+        return setfield!(mxh, :c0, value)
+
+    elseif field in (:δ, :triangularity)
+        return mxh.s[1] = asin(value)
+
+    elseif field in (:ζ, :squareness)
+        return mxh.s[2] = - value
+
+    elseif field in (:𝚶, :ovality)
+        return mxh.c[1] = value
+
+    elseif field == :twist
+        return mxh.c[2] = value
+    end
+
+    return setfield!(mxh, field, value)
+end
+
 function promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real},U<:AbstractVector{<:Real}}
     T === U && return c, s
     try
