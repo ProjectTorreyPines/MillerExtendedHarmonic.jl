@@ -11,10 +11,26 @@ mutable struct MXH{T<:Real,U<:AbstractVector{<:Real}}
     end
 end
 
+"""
+    MXH(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T<:Real,U<:AbstractVector{<:Real}}
+
+Return MXH for Miller-extended-harmonic representation:
+
+    R(θ) = R0 + R0*ϵ*cos(θᵣ(θ)) where θᵣ(θ) = θ + c0 + sum[c[m]*cos(m*θ) + s[m]*sin(m*θ)]
+    Z(θ) = Z0 - κ*R0*ϵ*sin(θ)
+"""
 function MXH(R0::T, Z0::T, ϵ::T, κ::T, c0::T, c::U, s::U) where {T<:Real,U<:AbstractVector{<:Real}}
     return MXH{T,U}(R0, Z0, ϵ, κ, c0, c, s)
 end
 
+"""
+    MXH(R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
+
+Return MXH for Miller-extended-harmonic representation:
+
+    R(θ) = R0 + R0*ϵ*cos(θᵣ(θ)) where θᵣ(θ) = θ + c0 + sum[c[m]*cos(m*θ) + s[m]*sin(m*θ)]
+    Z(θ) = Z0 - κ*R0*ϵ*sin(θ)
+"""
 function MXH(R0::Real, Z0::Real, ϵ::Real, κ::Real, c0::Real, c::AbstractVector{<:Real}, s::AbstractVector{<:Real})
     return MXH(promote(R0, Z0, ϵ, κ, c0)..., promote_vectors(c, s)...)
 end
@@ -106,6 +122,16 @@ end
 _promote_vectors(c::T, s::U) where {T<:AbstractVector{<:Real},U<:AbstractRange{<:Real}} = (c, collect(s))
 _promote_vectors(c::T, s::U) where {T<:AbstractRange{<:Real},U<:AbstractVector{<:Real}} = (collect(c), s)
 
+"""
+    MXH(R0::Real, n_coeffs::Integer)
+
+Return MXH for example Miller-extended-harmonic representation:
+
+    R(θ) = R0 + 0.3*R0*cos(θ)
+    Z(θ) = -0.3*R0*sin(θ)
+
+with `n_coeffs`` sin/cos coefficients all set to zero
+"""
 function MXH(R0::Real, n_coeffs::Integer)
     return MXH(R0, 0.0, 0.3, 1.0, 0.0, zeros(n_coeffs), zeros(n_coeffs))
 end
@@ -175,6 +201,11 @@ function unflatten_view(flat::AbstractVector{<:Real})
     return R0, Z0, ϵ, κ, c0, c, s
 end
 
+"""
+    MXH(flat::AbstractVector{<:Real})
+
+Return MXH for Miller-extended-harmonic representation from flattened coefficients
+"""
 function MXH(flat::AbstractVector{<:Real})
     return MXH(unflatten(flat)...)
 end
@@ -313,10 +344,13 @@ end
 
 Compute Fourier coefficients for Miller-extended-harmonic representation:
 
-    R(r,θ) = R(r) + a(r)*cos(θᵣ(r,θ)) where θᵣ(r,θ) = θ + C₀(r) + sum[Cᵢ(r)*cos(i*θ) + Sᵢ(r)*sin(i*θ)]
-    Z(r,θ) = Z(r) - κ(r)*a(r)*sin(θ)
+    R(θ) = R0 + R0*ϵ*cos(θᵣ(θ)) where θᵣ(θ) = θ + c0 + sum[c[m]*cos(m*θ) + s[m]*sin(m*θ)]
+    Z(θ) = Z0 - κ*R0*ϵ*sin(θ)
 
-Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes. Spline keyword indicates to use spline integration for modes
+Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes.
+`optimize_fit` keyword indicates to optimize the fit parameters to best go through the points
+`spline` keyword indicates to use spline integration for modes
+`rmin`, `rmax`, `zmin`, `zmax` force certain maximum and minimum values for the fit
 """
 function MXH(
     pr::AbstractVector{<:Real},
@@ -351,7 +385,8 @@ end
         zmin=0.0,
         zmax=0.0)
 
-like MXH() but operates in place
+Like MXH() but operates in place.
+θ, Δθᵣ, dθ, Fm are work arrays vectors that can be preallocated if desired
 """
 function MXH!(
     mxh::MXH,
@@ -584,6 +619,22 @@ function MXH_coeffs_spline!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real},
     end
 end
 
+"""
+        MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
+             optimize_fit=false, spline=false)
+
+Compute Fourier coefficients for Miller-extended-harmonic representation:
+
+    R(θ) = R0 + R0*ϵ*cos(θᵣ(θ)) where θᵣ(θ) = θ + c0 + sum[c[m]*cos(m*θ) + s[m]*sin(m*θ)]
+    Z(θ) = Z0 - κ*R0*ϵ*sin(θ)
+
+Where pr,pz are the flux surface coordinates and MXH_modes is the number of modes.
+`optimize_fit` keyword indicates to optimize the fit parameters to best go through the points
+`spline` keyword indicates to use spline integration for modes
+
+N.B.: If `optimize_fit` is false, some MXH values are fixed, namely R0=R0, Z0=Z0, ϵ=a/R0, and κ=b/a
+      Otherwise, these are just the starting values for the optimzation
+"""
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
              optimize_fit=false, spline=false)
 
@@ -596,7 +647,16 @@ function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z
                 optimize_fit, spline)
 end
 
-# Note that this can reorder pr and pz
+"""
+        MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real;
+    θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
+    optimize_fit=false, spline=false)
+
+Like MXH() but operates in place.
+θ, Δθᵣ, dθ, Fm are work arrays vectors that can be preallocated if desired
+
+N.B.: This function potentially reorders pr and pz in-place
+"""
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real;
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
     optimize_fit=false, spline=false)
