@@ -304,10 +304,6 @@ end
     pr::AbstractVector{<:Real},
     pz::AbstractVector{<:Real},
     MXH_modes::Integer=5;
-    θ=nothing,
-    Δθᵣ=nothing,
-    dθ=nothing,
-    Fm=nothing,
     optimize_fit=false,
     spline=false,
     rmin=0.0,
@@ -326,10 +322,6 @@ function MXH(
     pr::AbstractVector{<:Real},
     pz::AbstractVector{<:Real},
     MXH_modes::Integer=5;
-    θ=nothing,
-    Δθᵣ=nothing,
-    dθ=nothing,
-    Fm=nothing,
     optimize_fit=false,
     spline=false,
     rmin=0.0,
@@ -340,7 +332,7 @@ function MXH(
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz; θ, Δθᵣ, dθ, Fm, optimize_fit, spline, rmin, rmax, zmin, zmax)
+    return MXH!(mxh, deepcopy(pr), deepcopy(pz); optimize_fit, spline, rmin, rmax, zmin, zmax)
 end
 
 """
@@ -348,10 +340,10 @@ end
         mxh::MXH,
         pr::AbstractVector{<:Real},
         pz::AbstractVector{<:Real};
-        θ=nothing,
-        Δθᵣ=nothing,
-        dθ=nothing,
-        Fm=nothing,
+        θ=similar(pr),
+        Δθᵣ=similar(pr),
+        dθ=similar(pr),
+        Fm=similar(pr),
         optimize_fit=false,
         spline=false,
         rmin=0.0,
@@ -365,10 +357,10 @@ function MXH!(
     mxh::MXH,
     pr::AbstractVector{<:Real},
     pz::AbstractVector{<:Real};
-    θ=nothing,
-    Δθᵣ=nothing,
-    dθ=nothing,
-    Fm=nothing,
+    θ::AbstractVector{<:Real}=similar(pr),
+    Δθᵣ::AbstractVector{<:Real}=similar(pr),
+    dθ::AbstractVector{<:Real}=similar(pr),
+    Fm::AbstractVector{<:Real}=similar(pr),
     optimize_fit=false,
     spline=false,
     rmin=0.0,
@@ -394,7 +386,7 @@ function MXH!(
     Z0 = 0.5 * (zmax + zmin)
     a = 0.5 * (rmax - rmin)
     b = 0.5 * (zmax - zmin)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b; θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
 end
 
 """
@@ -593,20 +585,19 @@ function MXH_coeffs_spline!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real},
 end
 
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
-    θ=nothing, Δθᵣ=nothing, dθ=nothing, Fm=nothing, optimize_fit=false, spline=false)
+             optimize_fit=false, spline=false)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
+    # deepcopy pr and pz since they can be reordered
+    return MXH!(mxh, deepcopy(pr), deepcopy(pz), R0, Z0, a, b;
+                θ=similar(pr), Δθᵣ=similar(pr), dθ=similar(pr), Fm=similar(pr),
+                optimize_fit, spline)
 end
 
-function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
-    θ::Nothing=nothing, Δθᵣ::Nothing=nothing, dθ::Nothing=nothing, Fm::Nothing=nothing, optimize_fit=false, spline=false)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b, similar(pr), similar(pr), similar(pr), similar(pr), optimize_fit, spline)
-end
-
-function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real,
+# Note that this can reorder pr and pz
+function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real;
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
     optimize_fit=false, spline=false)
 
