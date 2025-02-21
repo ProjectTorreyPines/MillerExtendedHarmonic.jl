@@ -829,12 +829,14 @@ function fit_flattened!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}
     return flat
 end
 
-@recipe function plot_mxh(mxh::MXH; adaptive_grid_N=100)
-    @assert typeof(adaptive_grid_N) <: Int
+@recipe function plot_mxh(mxh::MXH; n_points=100, adaptive=true)
+    @assert typeof(n_points) <: Int
+    @assert typeof(adaptive) <: Bool
+    pr, pz = mxh(n_points; adaptive)
     @series begin
         aspect_ratio --> :equal
         label --> ""
-        mxh(adaptive_grid_N)
+        pr, pz
     end
 end
 
@@ -853,17 +855,17 @@ function Base.show(io::IO, mxh::MXH)
 end
 
 """
-    (mxh::MXH)(N::Int=100; adaptive::Bool=true)
+    (mxh::MXH)(n_points::Int=100; adaptive::Bool=true)
 
 Returns (r,z) vectors of given MXH
 
-If `adaptive`, the number of points is specified for the perimeter of a unit circle
+If `adaptive`, `n_points` is specified for the perimeter of a unit circle; and the number will never be less than `n_points`.
 """
 function (mxh::MXH)(n_points::Int=100; adaptive::Bool=true)
     if adaptive
         step = 2π / n_points
         a = mxh.ϵ * mxh.R0
-        NN = Int(ceil(2π * a * mxh.κ / step / 2.0)) * 2 + 1
+        NN = max(Int(ceil(2π * a * mxh.κ / step)), n_points)
     else
         NN = n_points
     end
