@@ -99,7 +99,7 @@ function Base.setproperty!(mxh::MXH, field::Symbol, value::Any)
         return mxh.s[1] = asin(value)
 
     elseif field in (:ζ, :squareness)
-        return mxh.s[2] = - value
+        return mxh.s[2] = -value
 
     elseif field in (:𝚶, :ovality)
         return mxh.c[1] = value
@@ -425,6 +425,24 @@ function MXH!(
 end
 
 """
+    is_clockwise(pr::T, pz::T) where {T<:AbstractVector{<:Real}}
+
+Given a simple polygon defined by `pr` and `pz` vectors, return true if the polygon is clockwise
+
+Works by finding a point on the convex hull and assessing the local orientation, as in https://en.wikipedia.org/wiki/Curve_orientation#Orientation_of_a_simple_polygon
+"""
+function is_clockwise(pr::T, pz::T) where {T<:AbstractVector{<:Real}}
+    N = length(pr)
+    isclosed = pr[1] == pr[end] && pz[1] == pz[end]
+    k = argmax(pr)
+    km, kp = k - 1, k + 1
+    (km < 1) && (km = isclosed ? N - 1 : N)
+    (kp > N) && (kp = isclosed ? 2 : 1)
+    return ((pr[k] * pz[kp] + pr[km] * pz[k] + pr[kp] * pz[km]) >
+            (pr[k] * pz[km] - pr[kp] * pz[k] - pr[km] * pz[kp]))
+end
+
+"""
     clockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
 
 Given `pr` and `pz` vectors flip them so that θ will increase.
@@ -433,10 +451,7 @@ Additional vectors will be treated the same.
 """
 function clockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
     @assert length(pr) == length(pz)
-
-    # flip to clockwise so θ will increase
-    @views iRmax = argmax(pr)
-    if pz[mod1(iRmax + 1, length(pr))] > pz[iRmax]
+    if !is_clockwise(pr, pz)
         reverse!(pr)
         reverse!(pz)
         for arg in args
@@ -456,10 +471,8 @@ Additional vectors will be treated the same.
 """
 function counterclockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
     @assert length(pr) == length(pz)
-
     # flip to counter-clockwise so θ will decrease
-    @views iRmax = argmax(pr)
-    if pz[mod1(iRmax + 1, length(pr))] < pz[iRmax]
+    if is_clockwise(pr, pz)
         reverse!(pr)
         reverse!(pz)
         for arg in args
