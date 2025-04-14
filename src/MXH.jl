@@ -448,6 +448,28 @@ function clockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Re
 end
 
 """
+    clockwise!(pr::T, pz::T, iRmax::Int, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
+
+Given `pr` and `pz` vectors and the index of (pr,pz) at the OMP flip them so that θ will increase.
+
+Additional vectors will be treated the same.
+"""
+function clockwise!(pr::T, pz::T, iRmax::Int, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
+    @assert length(pr) == length(pz)
+
+    # flip to clockwise so θ will increase
+    if pz[mod1(iRmax + 1, length(pr))] > pz[iRmax]
+        reverse!(pr)
+        reverse!(pz)
+        for arg in args
+            reverse!(arg)
+        end
+    end
+
+    return nothing
+end
+
+"""
     counterclockwise!(pr::T, pz::T, args::Vararg{T}) where {T<:AbstractVector{<:Real}}
 
 Given `pr` and `pz` vectors flip them so that θ will decrease.
@@ -517,7 +539,7 @@ function reorder_flux_surface!(pr::T, pz::T, istart::Int) where {T<:AbstractVect
     end
 
     # flip to clockwise so θ will increase
-    clockwise!(pr, pz)
+    clockwise!(pr, pz, 1)
 
     return pr, pz
 end
