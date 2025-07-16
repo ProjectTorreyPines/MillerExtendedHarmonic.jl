@@ -99,7 +99,7 @@ function Base.setproperty!(mxh::MXH, field::Symbol, value::Any)
         return mxh.s[1] = asin(value)
 
     elseif field in (:ζ, :squareness)
-        return mxh.s[2] = - value
+        return mxh.s[2] = -value
 
     elseif field in (:𝚶, :ovality)
         return mxh.c[1] = value
@@ -655,18 +655,18 @@ Where pr,pz are the flux surface coordinates and MXH_modes is the number of mode
 `spline` keyword indicates to use spline integration for modes
 
 N.B.: If `optimize_fit` is false, some MXH values are fixed, namely R0=R0, Z0=Z0, ϵ=a/R0, and κ=b/a
-      Otherwise, these are just the starting values for the optimzation
+Otherwise, these are just the starting values for the optimzation
 """
 function MXH(pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real, MXH_modes::Integer;
-             optimize_fit=false, spline=false)
+    optimize_fit=false, spline=false)
 
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
     # deepcopy pr and pz since they can be reordered
     return MXH!(mxh, deepcopy(pr), deepcopy(pz), R0, Z0, a, b;
-                θ=similar(pr), Δθᵣ=similar(pr), dθ=similar(pr), Fm=similar(pr),
-                optimize_fit, spline)
+        θ=similar(pr), Δθᵣ=similar(pr), dθ=similar(pr), Fm=similar(pr),
+        optimize_fit, spline)
 end
 
 """
@@ -887,7 +887,7 @@ function (mxh::MXH)(n_points::Int=100; adaptive::Bool=true)
     if adaptive
         step = 2π / n_points
         a = mxh.ϵ * mxh.R0
-        NN = max(Int(ceil(2π * a * mxh.κ / step)), n_points)
+        NN = max(round(Int, 2π * a * mxh.κ / step, RoundUp), n_points)
     else
         NN = n_points
     end
