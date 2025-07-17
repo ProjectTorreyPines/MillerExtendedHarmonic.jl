@@ -97,7 +97,7 @@ end
     return θindex(θ, L)
 end
 
-@inline θindex(θ::Real, L::Int) = Int(round(θ * L * inv_twopi)) + 1
+@inline θindex(θ::Real, L::Int) = round(Int, θ * L * inv_twopi) + 1
 
 function Tr_dTrdρ_dTrdθ(
     θ::Real,
