@@ -759,6 +759,9 @@ function fit_residual(x, pr, pz)
     return res
 end
 
+# Optim v2 takes an ADTypes backend for `autodiff`; v1 takes the legacy Symbol
+const AUTODIFF_FORWARD = pkgversion(Optim) >= v"2" ? Optim.ADTypes.AutoForwardDiff() : :forward
+
 function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}; inner_optimizer=Optim.LBFGS(), debug=false)
 
     f = x -> fit_residual(x, pr, pz)
@@ -801,7 +804,7 @@ function optimize_fit!(flat::AbstractVector{<:Real}, pr::AbstractVector{<:Real},
 
     algo = Optim.Fminbox(inner_optimizer)
     options = Optim.Options()#store_trace=true, show_trace=true)
-    res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff=:forward)
+    res = Optim.optimize(f, lower, upper, flat, algo, options; autodiff=AUTODIFF_FORWARD)
     #debug && println("Residual: ", f(res.minimizer))
 
     Rmin = res.minimizer[1]

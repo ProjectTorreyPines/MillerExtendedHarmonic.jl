@@ -3,6 +3,7 @@ module MillerExtendedHarmonic
 using RecipesBase
 import LinearAlgebra: dot
 using Optim
+import ForwardDiff  # backend for Optim's forward-mode autodiff (required explicitly by Optim v2)
 using Dierckx
 
 const halfpi = 0.5 * π
