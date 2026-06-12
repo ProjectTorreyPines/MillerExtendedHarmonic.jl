@@ -1,6 +1,6 @@
 name = "MillerExtendedHarmonic"
 uuid = "c82744c2-dc08-461a-8c37-87ab04d0f9b8"
-version = "2.1.1"
+version = "2.1.2"
 authors = ["Orso Meneghini <orso82@gmail.com>"]
 
 [deps]
