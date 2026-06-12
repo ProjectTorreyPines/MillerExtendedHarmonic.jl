@@ -227,36 +227,44 @@ function copy_MXH!(mxh1::MXH, mxh2::MXH)
 end
 
 """
-    MXH_moment_trapz(f, w, d)
+    MXH_moment_trapz(f, w, d; c_prev=0.0, λ=0.0)
 
 This does Int[f.w]/Int[w.w] using Trapezoidal method
 If w is a pure Fourier mode, this gives the Fourier coefficient
+
+`λ` is a Tikhonov-style regularization weight that biases the result toward
+`c_prev`: the returned value is `(Int[f.w] + λ*c_prev) / (Int[w.w] + λ)`.
+With `λ=0` (the default) this reduces to the plain moment `Int[f.w]/Int[w.w]`.
 """
-function MXH_moment_trapz(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, dx::AbstractVector{<:Real})
+function MXH_moment_trapz(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, dx::AbstractVector{<:Real};
+    c_prev::Float64=0.0, λ::Float64=0.0)
     # Could probably be replaced by Trapz.jl
     N = length(f)
     @assert length(w) == length(dx) == N
     @inbounds s0 = sum((f[i] * w[i] + f[i+1] * w[i+1]) * dx[i] for i in 1:(N-1))
     @inbounds s1 = sum((w[i]^2 + w[i+1]^2) * dx[i] for i in 1:(N-1))
-    res = s0 / s1
-    return res
+    return (s0 + λ * c_prev) / (s1 + λ)
 end
 
 """
-    MXH_moment_spline(f, w, x)
+    MXH_moment_spline(f, w, x; c_prev=0.0, λ=0.0)
 
 This does Int[f.w]/Int[w.w] using B-splines
 If w is a pure Fourier mode, this gives the Fourier coefficient
+
+`λ` is a Tikhonov-style regularization weight that biases the result toward
+`c_prev`: the returned value is `(Int[f.w] + λ*c_prev) / (Int[w.w] + λ)`.
+With `λ=0` (the default) this reduces to the plain moment `Int[f.w]/Int[w.w]`.
 """
-function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, x::AbstractVector{<:Real})
+function MXH_moment_spline(f::AbstractVector{<:Real}, w::AbstractVector{<:Real}, x::AbstractVector{<:Real};
+    c_prev::Float64=0.0, λ::Float64=0.0)
     @assert length(w) == length(x) == length(f)
 
     spl0 = Spline1D(x, f .* w)
     spl1 = Spline1D(x, w .^ 2)
     s0 = integrate(spl0, x[begin], x[end])
     s1 = integrate(spl1, x[begin], x[end])
-    res = s0 / s1
-    return res
+    return (s0 + λ * c_prev) / (s1 + λ)
 end
 
 function find_extremum(xm, x0, xp, ym, y0, yp)
@@ -340,7 +348,9 @@ end
     rmin=0.0,
     rmax=0.0,
     zmin=0.0,
-    zmax=0.0)
+    zmax=0.0,
+    mxh_prev=nothing,
+    λ=0.0)
 
 Compute Fourier coefficients for Miller-extended-harmonic representation:
 
@@ -351,6 +361,10 @@ Where pr,pz are the flux surface coordinates and MXH_modes is the number of mode
 `optimize_fit` keyword indicates to optimize the fit parameters to best go through the points
 `spline` keyword indicates to use spline integration for modes
 `rmin`, `rmax`, `zmin`, `zmax` force certain maximum and minimum values for the fit
+`mxh_prev` is a previous `MXH` fit whose coefficients regularize this one (e.g. to reduce
+surface-to-surface jitter); `λ` is the regularization weight pulling each coefficient toward
+the corresponding value in `mxh_prev`. Regularization is only applied when `mxh_prev` is given;
+with `mxh_prev=nothing` or `λ=0` the fit is identical to the unregularized result.
 """
 function MXH(
     pr::AbstractVector{<:Real},
@@ -361,12 +375,14 @@ function MXH(
     rmin=0.0,
     rmax=0.0,
     zmin=0.0,
-    zmax=0.0
+    zmax=0.0,
+    mxh_prev::Union{MXH,Nothing}=nothing,
+    λ::Float64=0.0
 )
     sin_coeffs = zeros(MXH_modes)
     cos_coeffs = zeros(MXH_modes)
     mxh = MXH(0.0, 0.0, 0.0, 0.0, 0.0, cos_coeffs, sin_coeffs)
-    return MXH!(mxh, deepcopy(pr), deepcopy(pz); optimize_fit, spline, rmin, rmax, zmin, zmax)
+    return MXH!(mxh, deepcopy(pr), deepcopy(pz); optimize_fit, spline, rmin, rmax, zmin, zmax, mxh_prev, λ)
 end
 
 """
@@ -383,10 +399,14 @@ end
         rmin=0.0,
         rmax=0.0,
         zmin=0.0,
-        zmax=0.0)
+        zmax=0.0,
+        mxh_prev=nothing,
+        λ=0.0)
 
 Like MXH() but operates in place.
 θ, Δθᵣ, dθ, Fm are work arrays vectors that can be preallocated if desired
+`mxh_prev` and `λ` regularize the fit toward a previous `MXH` (see `MXH`); with
+`mxh_prev=nothing` or `λ=0` the result is unregularized.
 """
 function MXH!(
     mxh::MXH,
@@ -401,7 +421,9 @@ function MXH!(
     rmin=0.0,
     rmax=0.0,
     zmin=0.0,
-    zmax=0.0
+    zmax=0.0,
+    mxh_prev::Union{MXH,Nothing}=nothing,
+    λ::Float64=0.0
 )
     if rmin == rmax == zmin == zmax == 0.0
         if optimize_fit
@@ -421,7 +443,7 @@ function MXH!(
     Z0 = 0.5 * (zmax + zmin)
     a = 0.5 * (rmax - rmin)
     b = 0.5 * (zmax - zmin)
-    return MXH!(mxh, pr, pz, R0, Z0, a, b; θ, Δθᵣ, dθ, Fm, optimize_fit, spline)
+    return MXH!(mxh, pr, pz, R0, Z0, a, b; θ, Δθᵣ, dθ, Fm, optimize_fit, spline, mxh_prev, λ)
 end
 
 """
@@ -601,7 +623,8 @@ end
 
 function MXH_coeffs_trapz!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
-    Fm::Union{AbstractVector{<:Real},Nothing}=nothing)
+    Fm::Union{AbstractVector{<:Real},Nothing}=nothing,
+    mxh_prev::Union{MXH,Nothing}=nothing, λ::Float64=0.0)
     @assert length(sin_coeffs) == length(cos_coeffs)
     Fm === nothing && (Fm = similar(θ))
 
@@ -611,33 +634,36 @@ function MXH_coeffs_trapz!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real}, 
     end
     dθ[end] = dθ[1]
 
+    λ_eff = mxh_prev === nothing ? 0.0 : λ
     Fm .= 1.0
-    c0[] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
+    c0[] = MXH_moment_trapz(Δθᵣ, Fm, dθ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.c0), λ=λ_eff)
 
     @inbounds for m in eachindex(sin_coeffs)
         Fm .= sin.(m .* θ)
-        sin_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
+        sin_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.s[m]), λ=λ_eff)
 
         Fm .= cos.(m .* θ)
-        cos_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ)
+        cos_coeffs[m] = MXH_moment_trapz(Δθᵣ, Fm, dθ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.c[m]), λ=λ_eff)
     end
 end
 
 function MXH_coeffs_spline!(c0::Ref{<:Real}, sin_coeffs::AbstractVector{<:Real}, cos_coeffs::AbstractVector{<:Real},
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real};
-    Fm::Union{AbstractVector{<:Real},Nothing}=nothing)
+    Fm::Union{AbstractVector{<:Real},Nothing}=nothing,
+    mxh_prev::Union{MXH,Nothing}=nothing, λ::Float64=0.0)
     @assert length(sin_coeffs) == length(cos_coeffs)
     Fm === nothing && (Fm = similar(θ))
 
+    λ_eff = mxh_prev === nothing ? 0.0 : λ
     Fm .= 1.0
-    c0[] = MXH_moment_spline(Δθᵣ, Fm, θ)
+    c0[] = MXH_moment_spline(Δθᵣ, Fm, θ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.c0), λ=λ_eff)
 
     @inbounds for m in eachindex(sin_coeffs)
         Fm .= sin.(m .* θ)
-        sin_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ)
+        sin_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.s[m]), λ=λ_eff)
 
         Fm .= cos.(m .* θ)
-        cos_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ)
+        cos_coeffs[m] = MXH_moment_spline(Δθᵣ, Fm, θ; c_prev=(mxh_prev === nothing ? 0.0 : mxh_prev.c[m]), λ=λ_eff)
     end
 end
 
@@ -672,16 +698,18 @@ end
 """
         MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real;
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
-    optimize_fit=false, spline=false)
+    optimize_fit=false, spline=false, mxh_prev=nothing, λ=0.0)
 
 Like MXH() but operates in place.
 θ, Δθᵣ, dθ, Fm are work arrays vectors that can be preallocated if desired
+`mxh_prev` and `λ` regularize the fit toward a previous `MXH` (see `MXH`); with
+`mxh_prev=nothing` or `λ=0` the result is unregularized.
 
 N.B.: This function potentially reorders pr and pz in-place
 """
 function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, R0::Real, Z0::Real, a::Real, b::Real;
     θ::AbstractVector{<:Real}, Δθᵣ::AbstractVector{<:Real}, dθ::AbstractVector{<:Real}, Fm::AbstractVector{<:Real},
-    optimize_fit=false, spline=false)
+    optimize_fit=false, spline=false, mxh_prev::Union{MXH,Nothing}=nothing, λ::Float64=0.0)
 
     @assert length(pr) == length(pz)
 
@@ -697,9 +725,9 @@ function MXH!(mxh::MXH, pr::AbstractVector{<:Real}, pz::AbstractVector{<:Real}, 
 
     c0 = Ref(0.0)
     if spline
-        @views MXH_coeffs_spline!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
+        @views MXH_coeffs_spline!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm, mxh_prev, λ)
     else
-        @views MXH_coeffs_trapz!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm)
+        @views MXH_coeffs_trapz!(c0, mxh.s, mxh.c, θ, Δθᵣ, dθ; Fm, mxh_prev, λ)
     end
     mxh.c0 = c0[]
 
